@@ -43,7 +43,7 @@ jobs:
       
       - name: Build and push frontend
         run: |
-          docker build -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:latest -f ./frontend/Dockerfile ./frontend
+          docker build --build-arg REACT_APP_API_URL=http://192.168.1.66:30081 -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:latest -f ./frontend/Dockerfile ./frontend
           docker push ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:${{ github.sha }}
           docker push ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:latest
 
