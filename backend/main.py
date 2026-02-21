@@ -96,8 +96,8 @@ async def simulate(request: SimulationRequest):
     train_years = list(range(request.train_season_start, request.train_season_end + 1))
     test_years = list(range(request.test_season_start, request.test_season_end + 1))
     
-    train_seasons = [f"{y}{y+1}" for y in train_years if y < 2024]
-    test_seasons = [f"{y}{y+1}" for y in test_years if y < 2024]
+    train_seasons = [f"{y}{y+1}" for y in train_years if y <= 2023]
+    test_seasons = [f"{y}{y+1}" for y in test_years if y <= 2023]
     
     test_df = df[df['season'].isin(test_seasons)].copy()
     
