@@ -20,8 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL_PATH = Path(__file__).parent / "model" / "hockey_model.pkl"
-DATA_PATH = Path(__file__).parent / "data" / "nhl_games.csv"
+MODEL_PATH = Path("/app/model/hockey_model.pkl")
+DATA_PATH = Path("/app/data/nhl_games.csv")
 
 model = None
 df = None
