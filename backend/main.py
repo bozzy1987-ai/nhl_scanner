@@ -106,7 +106,7 @@ async def get_seasons():
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     seasons = sorted(df['season'].unique())
-    return {"seasons": [s for s in seasons if int(s[:4]) <= 2024]}
+    return {"seasons": [int(s[:4]) for s in seasons if int(s[:4]) <= 2025]}
 
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
@@ -117,8 +117,8 @@ async def simulate(request: SimulationRequest):
     train_years = list(range(request.train_season_start, request.train_season_end + 1))
     test_years = list(range(request.test_season_start, request.test_season_end + 1))
     
-    train_seasons = [str(y) + str(y+1) for y in train_years if y <= 2023]
-    test_seasons = [str(y) + str(y+1) for y in test_years if y <= 2023]
+    train_seasons = [str(y) + str(y+1) for y in train_years if y <= 2025]
+    test_seasons = [str(y) + str(y+1) for y in test_years if y <= 2025]
     
     df['season'] = df['season'].astype(str)
     test_df = df[df['season'].isin(test_seasons)].copy()
