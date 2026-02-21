@@ -63,23 +63,35 @@ class SimulationResult(BaseModel):
 
 def prepare_features_for_prediction(home_cf, away_cf, home_xgf, away_xgf, home_hdcf, away_hdcf, home_sf, away_sf, home_gf, away_gf):
     """Prepare features for model prediction"""
+    import numpy as np
+    home_cf = np.asarray(home_cf, dtype=float)
+    away_cf = np.asarray(away_cf, dtype=float)
+    home_xgf = np.asarray(home_xgf, dtype=float)
+    away_xgf = np.asarray(away_xgf, dtype=float)
+    home_hdcf = np.asarray(home_hdcf, dtype=float)
+    away_hdcf = np.asarray(away_hdcf, dtype=float)
+    home_sf = np.asarray(home_sf, dtype=float)
+    away_sf = np.asarray(away_sf, dtype=float)
+    home_gf = np.asarray(home_gf, dtype=float)
+    away_gf = np.asarray(away_gf, dtype=float)
+    
     features = pd.DataFrame({
-        'home_cf_pct': [float(home_cf)],
-        'away_cf_pct': [float(away_cf)],
-        'cf_diff': [float(home_cf) - float(away_cf)],
-        'home_xgf_pct': [float(home_xgf)],
-        'away_xgf_pct': [float(away_xgf)],
-        'xgf_diff': [float(home_xgf) - float(away_xgf)],
-        'home_hdcf_pct': [float(home_hdcf)],
-        'away_hdcf_pct': [float(away_hdcf)],
-        'hdcf_diff': [float(home_hdcf) - float(away_hdcf)],
-        'home_sf_pct': [float(home_sf)],
-        'away_sf_pct': [float(away_sf)],
-        'sf_diff': [float(home_sf) - float(away_sf)],
-        'home_gf_pct': [float(home_gf)],
-        'away_gf_pct': [float(away_gf)],
-        'gf_diff': [float(home_gf) - float(away_gf)],
-        'home_advantage': [1.0]
+        'home_cf_pct': home_cf,
+        'away_cf_pct': away_cf,
+        'cf_diff': home_cf - away_cf,
+        'home_xgf_pct': home_xgf,
+        'away_xgf_pct': away_xgf,
+        'xgf_diff': home_xgf - away_xgf,
+        'home_hdcf_pct': home_hdcf,
+        'away_hdcf_pct': away_hdcf,
+        'hdcf_diff': home_hdcf - away_hdcf,
+        'home_sf_pct': home_sf,
+        'away_sf_pct': away_sf,
+        'sf_diff': home_sf - away_sf,
+        'home_gf_pct': home_gf,
+        'away_gf_pct': away_gf,
+        'gf_diff': home_gf - away_gf,
+        'home_advantage': np.ones(len(home_cf))
     })
     return features
 
@@ -115,16 +127,16 @@ async def simulate(request: SimulationRequest):
         raise HTTPException(status_code=400, detail="No test data available for selected seasons")
     
     X_test = prepare_features_for_prediction(
-        test_df['home_cf_pct'].astype(float).values,
-        test_df['away_cf_pct'].astype(float).values,
-        test_df['home_xgf_pct'].astype(float).values,
-        test_df['away_xgf_pct'].astype(float).values,
-        test_df['home_hdcf_pct'].astype(float).values,
-        test_df['away_hdcf_pct'].astype(float).values,
-        test_df['home_sf_pct'].astype(float).values,
-        test_df['away_sf_pct'].astype(float).values,
-        test_df['home_gf_pct'].astype(float).values,
-        test_df['away_gf_pct'].astype(float).values
+        test_df['home_cf_pct'].values,
+        test_df['away_cf_pct'].values,
+        test_df['home_xgf_pct'].values,
+        test_df['away_xgf_pct'].values,
+        test_df['home_hdcf_pct'].values,
+        test_df['away_hdcf_pct'].values,
+        test_df['home_sf_pct'].values,
+        test_df['away_sf_pct'].values,
+        test_df['home_gf_pct'].values,
+        test_df['away_gf_pct'].values
     )
     
     probabilities = model.predict_proba(X_test)[:, 1]
