@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  HARBOR_HOST: 192.168.1.65
+  K3S_HOST: 192.168.1.66
+  K3S_USER: k3s_master
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.HARBOR_HOST }}
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.HARBOR_HOST }}/hockey-analytics/backend:${{ github.sha }}
+            ${{ env.HARBOR_HOST }}/hockey-analytics/backend:latest
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.HARBOR_HOST }}
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+      
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:${{ github.sha }}
+            ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:latest
+
+  deploy:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to k3s
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.K3S_HOST }}
+          username: ${{ env.K3S_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /tmp
+            helm repo update
+            helm upgrade --install hockey-analytics ./helm/hockey-analytics \
+              --set image.tag=${{ github.sha }} \
+              --namespace nhl-scanner \
+              --create-namespace
