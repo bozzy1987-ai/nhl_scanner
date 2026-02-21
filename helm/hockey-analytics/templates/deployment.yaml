@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: "192.168.1.65/hockey-analytics/backend:latest"
+        image: "192.168.1.65/nhl_scanner/backend:latest"
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -52,7 +52,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: "192.168.1.65/hockey-analytics/frontend:latest"
+        image: "192.168.1.65/nhl_scanner/frontend:latest"
         imagePullPolicy: IfNotPresent
         env:
         - name: REACT_APP_API_URL

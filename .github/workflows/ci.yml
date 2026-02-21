@@ -25,9 +25,9 @@ jobs:
       
       - name: Build and push backend
         run: |
-          docker build -t ${{ env.HARBOR_HOST }}/hockey-analytics/backend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/hockey-analytics/backend:latest -f ./backend/Dockerfile .
-          docker push ${{ env.HARBOR_HOST }}/hockey-analytics/backend:${{ github.sha }}
-          docker push ${{ env.HARBOR_HOST }}/hockey-analytics/backend:latest
+          docker build -t ${{ env.HARBOR_HOST }}/nhl_scanner/backend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/nhl_scanner/backend:latest -f ./backend/Dockerfile ./backend
+          docker push ${{ env.HARBOR_HOST }}/nhl_scanner/backend:${{ github.sha }}
+          docker push ${{ env.HARBOR_HOST }}/nhl_scanner/backend:latest
 
   build-frontend:
     runs-on: runner-nhl
@@ -43,9 +43,9 @@ jobs:
       
       - name: Build and push frontend
         run: |
-          docker build -t ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:latest -f ./frontend/Dockerfile ./frontend
-          docker push ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:${{ github.sha }}
-          docker push ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:latest
+          docker build -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:${{ github.sha }} -t ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:latest -f ./frontend/Dockerfile ./frontend
+          docker push ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:${{ github.sha }}
+          docker push ${{ env.HARBOR_HOST }}/nhl_scanner/frontend:latest
 
   deploy:
     needs: [build-backend, build-frontend]
