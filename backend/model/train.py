@@ -45,6 +45,8 @@ SEASONS = [
     ('20212022', '2021-10-12', '2022-04-29'),
     ('20222023', '2022-10-11', '2023-04-16'),
     ('20232024', '2023-10-10', '2024-04-18'),
+    ('20242025', '2024-10-08', '2025-04-17'),
+    ('20252026', '2025-10-07', '2026-04-15'),
 ]
 
 def generate_team_stats(team: str, season: str) -> dict:
@@ -110,7 +112,7 @@ def generate_games() -> pd.DataFrame:
                     'away_sf_pct': away_stats['sf_pct'],
                     'home_gf_pct': home_stats['gf_pct'],
                     'away_gf_pct': away_stats['gf_pct'],
-                    'home_goals_1_5': 1 if home_goals >= 2 else 0,
+                    'home_goals_2_5': 1 if home_goals >= 3 else 0,
                 })
             
             current += timedelta(days=1)
@@ -159,7 +161,7 @@ def main():
     
     print("\nPreparing features...")
     X = prepare_features(df)
-    y = df['home_goals_1_5']
+    y = df['home_goals_2_5']
     
     df['season_year'] = df['season'].apply(extract_season_year)
     

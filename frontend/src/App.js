@@ -9,8 +9,8 @@ function App() {
   const [seasons, setSeasons] = useState([]);
   const [trainStart, setTrainStart] = useState(2013);
   const [trainEnd, setTrainEnd] = useState(2020);
-  const [testStart, setTestStart] = useState(2021);
-  const [testEnd, setTestEnd] = useState(2023);
+  const [testStart, setTestStart] = useState(2024);
+  const [testEnd, setTestEnd] = useState(2024);
   const [confidence, setConfidence] = useState(65);
   const [betAmount, setBetAmount] = useState(100);
   const [results, setResults] = useState(null);
@@ -18,7 +18,7 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    setSeasons([2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]);
+    setSeasons([2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]);
   }, []);
 
   const runSimulation = async () => {

@@ -141,7 +141,7 @@ async def simulate(request: SimulationRequest):
     
     probabilities = model.predict_proba(X_test)[:, 1]
     test_df['predicted_prob'] = probabilities
-    test_df['actual_1_5'] = test_df['home_goals_1_5']
+    test_df['actual_2_5'] = test_df['home_goals_2_5']
     
     qualifying_bets = test_df[test_df['predicted_prob'] >= request.confidence_threshold / 100].copy()
     
@@ -157,10 +157,10 @@ async def simulate(request: SimulationRequest):
             "comment": "Brak meczów spełniających próg confidence."
         }
     
-    qualifying_bets['won'] = (qualifying_bets['actual_1_5'] == 1).astype(int)
+    qualifying_bets['won'] = (qualifying_bets['actual_2_5'] == 1).astype(int)
     qualifying_bets['profit'] = np.where(
         qualifying_bets['won'] == 1,
-        request.bet_amount * 0.9,
+        request.bet_amount * 0.6,
         -request.bet_amount
     )
     
