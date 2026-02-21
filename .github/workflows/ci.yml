@@ -60,5 +60,6 @@ jobs:
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
           helm upgrade --install nhl-scanner /tmp/helm/hockey-analytics \
             --namespace nhl-scanner \
-            --create-namespace
+            --create-namespace \
+            --force
           EOF

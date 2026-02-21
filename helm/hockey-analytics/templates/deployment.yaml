@@ -17,7 +17,7 @@ spec:
       containers:
       - name: backend
         image: "192.168.1.65/nhl_scanner/backend:latest"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
 ---
@@ -53,7 +53,7 @@ spec:
       containers:
       - name: frontend
         image: "192.168.1.65/nhl_scanner/frontend:latest"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         env:
         - name: REACT_APP_API_URL
           value: "http://192.168.1.66:30081"
