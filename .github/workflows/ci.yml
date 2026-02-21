@@ -55,12 +55,10 @@ jobs:
 
       - name: Deploy to k3s
         run: |
+          scp -o StrictHostKeyChecking=no -r helm k3s_master@192.168.1.66:/tmp/
           ssh -o StrictHostKeyChecking=no k3s_master@192.168.1.66 << 'EOF'
           export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-          helm upgrade --install nhl-scanner ./helm/hockey-analytics \
+          helm upgrade --install nhl-scanner /tmp/helm/hockey-analytics \
             --namespace nhl-scanner \
-            --create-namespace \
-            --set backend.image.repository=192.168.1.65/nhl_scanner/backend \
-            --set frontend.image.repository=192.168.1.65/nhl_scanner/frontend \
-            --set image.tag=${{ github.sha }}
+            --create-namespace
           EOF

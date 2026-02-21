@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hockey-analytics-backend
+  name: nhl-scanner-backend
   labels:
-    app: hockey-analytics
+    app: nhl-scanner
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hockey-analytics
+      app: nhl-scanner
   template:
     metadata:
       labels:
-        app: hockey-analytics
+        app: nhl-scanner
     spec:
       containers:
       - name: backend
@@ -24,11 +24,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hockey-analytics-backend-svc
+  name: nhl-scanner-backend-svc
 spec:
   type: NodePort
   selector:
-    app: hockey-analytics
+    app: nhl-scanner
   ports:
   - port: 8000
     targetPort: 8000
@@ -37,18 +37,18 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hockey-analytics-frontend
+  name: nhl-scanner-frontend
   labels:
-    app: hockey-analytics-frontend
+    app: nhl-scanner-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hockey-analytics-frontend
+      app: nhl-scanner-frontend
   template:
     metadata:
       labels:
-        app: hockey-analytics-frontend
+        app: nhl-scanner-frontend
     spec:
       containers:
       - name: frontend
@@ -63,11 +63,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hockey-analytics-frontend-svc
+  name: nhl-scanner-frontend-svc
 spec:
   type: NodePort
   selector:
-    app: hockey-analytics-frontend
+    app: nhl-scanner-frontend
   ports:
   - port: 80
     targetPort: 80

@@ -1,14 +1,26 @@
 replicaCount: 1
 
-image:
-  repository: 192.168.1.65/hockey-analytics/backend
-  pullPolicy: IfNotPresent
-  tag: "latest"
+backend:
+  image:
+    repository: 192.168.1.65/nhl_scanner/backend
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+frontend:
+  image:
+    repository: 192.168.1.65/nhl_scanner/frontend
+    pullPolicy: IfNotPresent
+    tag: "latest"
 
 service:
-  type: NodePort
-  port: 8000
-  nodePort: 30080
+  backend:
+    type: NodePort
+    port: 8000
+    nodePort: 30081
+  frontend:
+    type: NodePort
+    port: 80
+    nodePort: 30080
 
 ingress:
   enabled: false
