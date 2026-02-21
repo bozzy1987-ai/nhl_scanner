@@ -52,15 +52,12 @@ jobs:
     runs-on: runner-nhl
     steps:
       - name: Deploy to k3s
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ env.K3S_HOST }}
-          username: ${{ env.K3S_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /tmp
-            helm repo update
-            helm upgrade --install hockey-analytics ./helm/hockey-analytics \
-              --set image.tag=${{ github.sha }} \
-              --namespace nhl-scanner \
-              --create-namespace
+        run: |
+          ssh -o StrictHostKeyChecking=no k3s_master@192.168.1.66 << 'EOF'
+          cd /tmp
+          helm repo update
+          helm upgrade --install hockey-analytics ./helm/hockey-analytics \
+            --set image.tag=${{ github.sha }} \
+            --namespace nhl-scanner \
+            --create-namespace
+          EOF
