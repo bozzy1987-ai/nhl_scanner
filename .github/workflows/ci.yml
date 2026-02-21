@@ -51,13 +51,13 @@ jobs:
     needs: [build-backend, build-frontend]
     runs-on: runner-nhl
     steps:
+      - uses: actions/checkout@v4
+      
       - name: Deploy to k3s
         run: |
           ssh -o StrictHostKeyChecking=no k3s_master@192.168.1.66 << 'EOF'
-          cd /tmp
-          helm repo update
-          helm upgrade --install hockey-analytics ./helm/hockey-analytics \
-            --set image.tag=${{ github.sha }} \
+          export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+          helm upgrade --install hockey-analytics ${{ github.workspace }}/helm/hockey-analytics \
             --namespace nhl-scanner \
             --create-namespace
           EOF
