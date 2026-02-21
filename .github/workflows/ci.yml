@@ -33,8 +33,8 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            http://${{ env.HARBOR_HOST }}/hockey-analytics/backend:${{ github.sha }}
-            http://${{ env.HARBOR_HOST }}/hockey-analytics/backend:latest
+            ${{ env.HARBOR_HOST }}/hockey-analytics/backend:${{ github.sha }}
+            ${{ env.HARBOR_HOST }}/hockey-analytics/backend:latest
 
   build-frontend:
     runs-on: runner-nhl
@@ -58,8 +58,8 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            http://${{ env.HARBOR_HOST }}/hockey-analytics/frontend:${{ github.sha }}
-            http://${{ env.HARBOR_HOST }}/hockey-analytics/frontend:latest
+            ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:${{ github.sha }}
+            ${{ env.HARBOR_HOST }}/hockey-analytics/frontend:latest
 
   deploy:
     needs: [build-backend, build-frontend]
