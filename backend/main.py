@@ -5,12 +5,30 @@ FastAPI backend for NHL Hockey Analytics
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
 
-app = FastAPI(title="Hockey Analytics API", version="1.0.0")
+MODEL_PATH = Path("/app/model/hockey_model.pkl")
+DATA_PATH = Path("/app/data/nhl_games.csv")
+
+model = None
+df = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model, df
+    try:
+        model = joblib.load(MODEL_PATH)
+        df = pd.read_csv(DATA_PATH)
+        print(f"Loaded model and data: {len(df)} games")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+    yield
+
+app = FastAPI(title="Hockey Analytics API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,15 +43,6 @@ DATA_PATH = Path("/app/data/nhl_games.csv")
 
 model = None
 df = None
-
-@app.on_event("startup")
-async def load_model():
-    global model, df
-    try:
-        model = joblib.load(MODEL_PATH)
-        df = pd.read_csv(DATA_PATH)
-    except Exception as e:
-        print(f"Error loading model: {e}")
 
 class SimulationRequest(BaseModel):
     train_season_start: int
