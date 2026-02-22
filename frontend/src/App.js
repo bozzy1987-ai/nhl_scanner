@@ -8,10 +8,10 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 function App() {
   const [seasons, setSeasons] = useState([]);
   const [trainStart, setTrainStart] = useState(2013);
-  const [trainEnd, setTrainEnd] = useState(2020);
-  const [testStart, setTestStart] = useState(2024);
-  const [testEnd, setTestEnd] = useState(2024);
-  const [confidence, setConfidence] = useState(65);
+  const [trainEnd, setTrainEnd] = useState(2024);
+  const [testStart, setTestStart] = useState(2025);
+  const [testEnd, setTestEnd] = useState(2025);
+  const [confidence, setConfidence] = useState(80);
   const [betAmount, setBetAmount] = useState(100);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);

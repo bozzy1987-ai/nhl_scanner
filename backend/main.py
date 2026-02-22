@@ -274,6 +274,91 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
     import requests
     from datetime import datetime, timedelta
     
+    # Auto-update: fetch recent results from last 7 days and add to training data
+    global combined_df, df
+    try:
+        recent_games = []
+        for day_offset in range(1, 8):  # last 7 days
+            date = datetime.now() - timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek'):
+                        for day in data['gameWeek']:
+                            for game in day.get('games', []):
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                home_score = game.get('homeTeam', {}).get('score', 0)
+                                away_score = game.get('awayTeam', {}).get('score', 0)
+                                # Only add finished games (score > 0)
+                                if home and away and home_score > 0 and away_score > 0:
+                                    game_date = day.get('date', date_str)
+                                    recent_games.append({
+                                        'date': game_date,
+                                        'home_team': home,
+                                        'away_team': away,
+                                        'home_gf': home_score,
+                                        'away_gf': away_score,
+                                        'season': 20252026
+                                    })
+            except:
+                pass
+        
+        if recent_games and combined_df is not None:
+            # Add recent games to combined_df if not already present
+            recent_df = pd.DataFrame(recent_games)
+            
+            # Map team names
+            team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
+            recent_df['home_team'] = recent_df['home_team'].replace(team_map)
+            recent_df['away_team'] = recent_df['away_team'].replace(team_map)
+            
+            # Get team stats for 2024-25
+            teams_2024 = teams[teams['season'] == 2024].copy()
+            
+            # Build features for recent games
+            new_features = []
+            for idx, row in recent_df.iterrows():
+                homeMapped = team_map.get(row['home_team'], row['home_team'])
+                awayMapped = team_map.get(row['away_team'], row['away_team'])
+                
+                home_stats = teams_2024[teams_2024['team'] == homeMapped]
+                away_stats = teams_2024[teams_2024['team'] == awayMapped]
+                
+                if len(home_stats) > 0 and len(away_stats) > 0:
+                    home_s = home_stats.iloc[0]
+                    away_s = away_stats.iloc[0]
+                    
+                    new_features.append({
+                        'season': row['season'],
+                        'date': row['date'],
+                        'home_team': row['home_team'],
+                        'away_team': row['away_team'],
+                        'home_gf': row['home_gf'],
+                        'away_gf': row['away_gf'],
+                        'home_xg_pct': home_s['xGoalsPercentage'],
+                        'home_cf_pct': home_s['corsiPercentage'],
+                        'away_xg_pct': away_s['xGoalsPercentage'],
+                        'away_cf_pct': away_s['corsiPercentage'],
+                        'home_goals_for': home_s['goalsFor'],
+                        'home_goals_against': home_s['goalsAgainst'],
+                        'away_goals_for': away_s['goalsFor'],
+                        'away_goals_against': away_s['goalsAgainst'],
+                    })
+            
+            if new_features:
+                new_games_df = pd.DataFrame(new_features)
+                # Remove duplicates based on date and teams
+                combined_df = pd.concat([combined_df, new_games_df], ignore_index=True)
+                # Remove duplicates
+                combined_df = combined_df.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
+                print(f"Added {len(new_games_df)} new games to training data. Total: {len(combined_df)}")
+    except Exception as e:
+        print(f"Auto-update error: {e}")
+    
     try:
         # Fetch games from NHL API
         all_games = []
