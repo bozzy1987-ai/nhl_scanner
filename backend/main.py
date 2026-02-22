@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI backend for NHL Hockey Analytics
+FastAPI backend for NHL Hockey Analytics - z prawdziwymi danymi
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,11 +11,13 @@ import numpy as np
 import joblib
 from pathlib import Path
 
-MODEL_PATH = Path("/app/model/hockey_model.pkl")
-DATA_PATH = Path("/app/data/nhl_games.csv")
+MODEL_PATH = Path(__file__).parent / "model" / "hockey_model.pkl"
+DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
 
 model = None
 df = None
+feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
+                'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -23,12 +25,13 @@ async def lifespan(app: FastAPI):
     try:
         model = joblib.load(MODEL_PATH)
         df = pd.read_csv(DATA_PATH)
-        print(f"Loaded model and data: {len(df)} games")
+        df['season'] = df['season'].astype(str)
+        print(f"Loaded model and {len(df)} games")
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"Error loading: {e}")
     yield
 
-app = FastAPI(title="Hockey Analytics API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Hockey Analytics API", version="2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,12 +41,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL_PATH = Path("/app/model/hockey_model.pkl")
-DATA_PATH = Path("/app/data/nhl_games.csv")
-
-model = None
-df = None
-
 class SimulationRequest(BaseModel):
     train_season_start: int
     train_season_end: int
@@ -52,98 +49,43 @@ class SimulationRequest(BaseModel):
     confidence_threshold: float
     bet_amount: float
 
-class SimulationResult(BaseModel):
-    total_profit: float
-    roi_percent: float
-    hit_rate: float
-    total_matches: int
-    matched_bets: int
-    bankroll_history: list
-    bets: list
-
-def prepare_features_for_prediction(home_cf, away_cf, home_xgf, away_xgf, home_hdcf, away_hdcf, home_sf, away_sf, home_gf, away_gf):
-    """Prepare features for model prediction"""
-    import numpy as np
-    home_cf = np.asarray(home_cf, dtype=float)
-    away_cf = np.asarray(away_cf, dtype=float)
-    home_xgf = np.asarray(home_xgf, dtype=float)
-    away_xgf = np.asarray(away_xgf, dtype=float)
-    home_hdcf = np.asarray(home_hdcf, dtype=float)
-    away_hdcf = np.asarray(away_hdcf, dtype=float)
-    home_sf = np.asarray(home_sf, dtype=float)
-    away_sf = np.asarray(away_sf, dtype=float)
-    home_gf = np.asarray(home_gf, dtype=float)
-    away_gf = np.asarray(away_gf, dtype=float)
-    
-    features = pd.DataFrame({
-        'home_cf_pct': home_cf,
-        'away_cf_pct': away_cf,
-        'cf_diff': home_cf - away_cf,
-        'home_xgf_pct': home_xgf,
-        'away_xgf_pct': away_xgf,
-        'xgf_diff': home_xgf - away_xgf,
-        'home_hdcf_pct': home_hdcf,
-        'away_hdcf_pct': away_hdcf,
-        'hdcf_diff': home_hdcf - away_hdcf,
-        'home_sf_pct': home_sf,
-        'away_sf_pct': away_sf,
-        'sf_diff': home_sf - away_sf,
-        'home_gf_pct': home_gf,
-        'away_gf_pct': away_gf,
-        'gf_diff': home_gf - away_gf,
-        'home_advantage': np.ones(len(home_cf))
-    })
-    return features
-
 @app.get("/")
 async def root():
-    return {"message": "Hockey Analytics API", "version": "1.0.0"}
+    return {"message": "Hockey Analytics API v2.0", "version": "2.0.0"}
 
 @app.get("/seasons")
 async def get_seasons():
-    """Get available seasons"""
     if df is None:
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     seasons = sorted(df['season'].unique())
-    return {"seasons": [int(s[:4]) for s in seasons if int(s[:4]) <= 2025]}
+    return {"seasons": [int(str(s)[:4]) for s in seasons]}
 
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
-    """Run backtesting simulation"""
     if model is None or df is None:
         raise HTTPException(status_code=500, detail="Model not loaded")
     
-    train_years = list(range(request.train_season_start, request.train_season_end + 1))
+    # Get test seasons
     test_years = list(range(request.test_season_start, request.test_season_end + 1))
+    test_seasons = [str(y) + str(y+1) for y in test_years]
     
-    train_seasons = [str(y) + str(y+1) for y in train_years if y <= 2025]
-    test_seasons = [str(y) + str(y+1) for y in test_years if y <= 2025]
-    
-    df['season'] = df['season'].astype(str)
     test_df = df[df['season'].isin(test_seasons)].copy()
     
     if len(test_df) == 0:
-        raise HTTPException(status_code=400, detail="No test data available for selected seasons")
+        raise HTTPException(status_code=400, detail="Brak danych dla wybranych sezonów")
     
-    X_test = prepare_features_for_prediction(
-        test_df['home_cf_pct'].values,
-        test_df['away_cf_pct'].values,
-        test_df['home_xgf_pct'].values,
-        test_df['away_xgf_pct'].values,
-        test_df['home_hdcf_pct'].values,
-        test_df['away_hdcf_pct'].values,
-        test_df['home_sf_pct'].values,
-        test_df['away_sf_pct'].values,
-        test_df['home_gf_pct'].values,
-        test_df['away_gf_pct'].values
-    )
-    
+    # Make predictions
+    X_test = test_df[feature_cols].copy()
     probabilities = model.predict_proba(X_test)[:, 1]
     test_df['predicted_prob'] = probabilities
-    test_df['actual_2_5'] = test_df['home_goals_2_5']
     
-    qualifying_bets = test_df[test_df['predicted_prob'] >= request.confidence_threshold / 100].copy()
+    # Target: home team scores 3+ goals
+    test_df['actual_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
+    
+    # Filter by confidence threshold
+    threshold = request.confidence_threshold / 100
+    qualifying_bets = test_df[test_df['predicted_prob'] >= threshold].copy()
     
     if len(qualifying_bets) == 0:
         return {
@@ -154,35 +96,36 @@ async def simulate(request: SimulationRequest):
             "matched_bets": 0,
             "bankroll_history": [],
             "bets": [],
-            "comment": "Brak meczów spełniających próg confidence."
+            "comment": "Brak meczów spełniających próg confidence. Spróbuj obniżyć próg."
         }
     
-    qualifying_bets['won'] = (qualifying_bets['actual_2_5'] == 1).astype(int)
+    # Calculate profit (60 PLN win for 100 PLN bet)
+    qualifying_bets['won'] = (qualifying_bets['actual_3_plus'] == 1).astype(int)
     qualifying_bets['profit'] = np.where(
         qualifying_bets['won'] == 1,
         request.bet_amount * 0.6,
         -request.bet_amount
     )
     
+    # Build history
     bankroll = 0.0
     bankroll_history = []
     for idx, row in qualifying_bets.iterrows():
         bankroll += row['profit']
         bankroll_history.append({
             "match": f"{row['home_team']} vs {row['away_team']}",
-            "date": row['date'],
+            "date": str(row['date']),
             "predicted_prob": round(row['predicted_prob'] * 100, 1),
             "result": "WIN" if row['won'] == 1 else "LOSS",
             "profit": round(row['profit'], 2),
-            "bankroll": round(bankroll, 2)
+            "bankroll": round(bankroll, 2),
+            "score": f"{row['home_gf']}-{row['away_gf']}"
         })
     
     total_profit = bankroll
     total_staked = len(qualifying_bets) * request.bet_amount
     roi_percent = (total_profit / total_staked * 100) if total_staked > 0 else 0
     hit_rate = qualifying_bets['won'].mean() * 100 if len(qualifying_bets) > 0 else 0
-    
-    comment = generate_comment(roi_percent, hit_rate, len(qualifying_bets), request.confidence_threshold, qualifying_bets)
     
     return {
         "total_profit": round(total_profit, 2),
@@ -191,45 +134,9 @@ async def simulate(request: SimulationRequest):
         "total_matches": len(test_df),
         "matched_bets": len(qualifying_bets),
         "bankroll_history": bankroll_history,
-        "bets": [
-            {
-                "match": b["match"],
-                "date": b["date"],
-                "predicted_prob": b["predicted_prob"],
-                "result": b["result"],
-                "profit": b["profit"]
-            }
-            for b in bankroll_history
-        ],
-        "comment": comment
+        "bets": bankroll_history,
+        "comment": f"ROI: {roi_percent:.1f}%, Hit rate: {hit_rate:.1f}% przy progu {request.confidence_threshold}%"
     }
-
-def generate_comment(roi, hit_rate, num_bets, threshold, bets_df):
-    """Generate Claude-style comment in Polish"""
-    if num_bets == 0:
-        return "Brak meczów spełniających wybrany próg confidence. Spróbuj obniżyć próg."
-    
-    comment = f"Model osiągnął ROI {roi:.1f}% typując mecze z confidence powyżej {threshold}%. "
-    
-    if hit_rate >= 60:
-        comment += "Bardzo dobry hit rate! "
-    elif hit_rate >= 50:
-        comment += "Przyzwoity hit rate. "
-    else:
-        comment += "Niski hit rate - model może wymagać dostrojenia. "
-    
-    if len(bets_df) > 0:
-        high_cf_bets = bets_df[bets_df['home_cf_pct'] > 55]
-        if len(high_cf_bets) > 0:
-            high_cf_hit_rate = high_cf_bets['won'].mean() * 100
-            comment += f"Najlepiej radził sobie w meczach gdzie gospodarz miał CF% > 55% (hit rate: {high_cf_hit_rate:.1f}%). "
-    
-    if roi > 0:
-        comment += "Strategia przyniosła zysk!"
-    else:
-        comment += "Strategia przyniosła stratę - rozważ zmianę parametrów."
-    
-    return comment
 
 if __name__ == "__main__":
     import uvicorn
