@@ -269,13 +269,56 @@ async def simulate(request: SimulationRequest):
     }
 
 @app.get("/schedule")
-async def get_schedule():
-    return {"message": "hello"}
+async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
+    """Get upcoming games and predictions"""
+    import requests
+    from datetime import datetime, timedelta
+    
+    try:
+        # Fetch games from NHL API
+        all_games = []
+        now = datetime.now()
+        
+        for day_offset in range(days_ahead):
+            date = now + timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek') and len(data.get('gameWeek', [])) > 0:
+                        for day in data['gameWeek']:
+                            for game in day.get('games', []):
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                if home and away:
+                                    all_games.append({
+                                        'date': date_str,
+                                        'home_team': home,
+                                        'away_team': away,
+                                    })
+            except:
+                pass
+        
+        if not all_games:
+            return {"games": [], "message": "No upcoming games found"}
+        
+        # Return raw schedule if data not loaded
+        if df is None:
+            return {"games": all_games[:20], "message": f"Found {len(all_games)} games"}
+        
+        # Build predictions
+        return await _build_predictions(all_games, threshold)
+        
+    except Exception as e:
+        return {"error": str(e)[:200], "games": []}
 
 
-async def _build_predictions(all_games, threshold, teams, combined_df_input, feature_cols, xgb):
+async def _build_predictions(all_games, threshold):
     """Helper to build ML predictions"""
     global combined_df
+    
     teams_2024_25 = teams[teams['season'] == 2024].copy()
     team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
     
