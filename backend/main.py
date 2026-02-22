@@ -530,7 +530,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
         results.append(pred)
     
     return {
-        "games": results[:50],
+        "games": results[:200],
         "total_games": len(results),
         "bet_count": bet_count,
         "threshold": threshold,
