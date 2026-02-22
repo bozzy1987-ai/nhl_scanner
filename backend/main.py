@@ -412,7 +412,7 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
         
         # Return raw schedule if data not loaded
         if df is None:
-            return {"games": all_games[:20], "message": f"Found {len(all_games)} games"}
+            return {"games": all_games[:50], "message": f"Found {len(all_games)} games"}
         
         # Build predictions
         return await _build_predictions(all_games, threshold)
@@ -440,7 +440,7 @@ async def _build_predictions(all_games, threshold):
     combined_df_ref = combined_df
     
     if len(teams_2024_25) == 0:
-        return {"games": all_games[:20], "message": "No team stats"}
+        return {"games": all_games[:50], "message": "No team stats"}
     
     # Build features
     predictions = []
@@ -508,7 +508,7 @@ async def _build_predictions(all_games, threshold):
         results.append(pred)
     
     return {
-        "games": results[:20],
+        "games": results[:50],
         "total_games": len(results),
         "bet_count": bet_count,
         "threshold": threshold,
