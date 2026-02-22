@@ -252,7 +252,7 @@ async def simulate(request: SimulationRequest):
     test_df['home_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
     
     # Select features based on model version
-    features = feature_cols_v2 if request.model_version == "v2" else feature_cols
+    features = feature_cols_v2 if request.model_version.startswith("v2") else feature_cols
     
     # Train model dynamically
     X_train = train_df[features]
@@ -554,7 +554,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     bet_count = 0
     
     # Use v2 features if model_version is v2
-    use_v2 = model_version == "v2"
+    use_v2 = model_version.startswith("v2")
     
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
@@ -637,7 +637,7 @@ async def train_and_save_model(version: str):
     train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
-    features = feature_cols_v2 if version == "v2" else feature_cols
+    features = feature_cols_v2 if version.startswith("v2") else feature_cols
     
     X_train = train_df[features]
     y_train = train_df['home_3_plus']
