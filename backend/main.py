@@ -14,15 +14,17 @@ import json
 
 DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
 TEAM_STATS_PATH = Path(__file__).parent / "data" / "teams_2008_to_2024.csv"
+DATA_2024_25_PATH = Path(__file__).parent / "data" / "test_predictions_2024_25.csv"
 
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
 df = None
+df_2024_25 = None
 teams = None
 
 def load_data():
-    global df, teams
+    global df, df_2024_25, teams
     try:
         # Load game results
         games = pd.read_csv(DATA_PATH)
@@ -72,7 +74,17 @@ def load_data():
             })
         
         df = pd.DataFrame(features)
-        print(f"Loaded {len(df)} games with features")
+        
+        # Load 2024-25 data if available
+        if DATA_2024_25_PATH.exists():
+            df_2024_25 = pd.read_csv(DATA_2024_25_PATH)
+            df_2024_25['season'] = 20242025
+            # Replace UTA with ARI
+            df_2024_25['home_team'] = df_2024_25['home_team'].replace('UTA', 'ARI')
+            df_2024_25['away_team'] = df_2024_25['away_team'].replace('UTA', 'ARI')
+            print(f"Loaded {len(df)} games + {len(df_2024_25)} 2024-25 games")
+        else:
+            print(f"Loaded {len(df)} games")
         
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -111,7 +123,13 @@ async def get_seasons():
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     seasons = sorted(df['season'].unique())
-    return {"seasons": [int(s) for s in seasons]}
+    result = [int(str(s)[:4]) for s in seasons]
+    
+    # Add 2024 for 2024-25
+    if df_2024_25 is not None:
+        result.append(2024)
+    
+    return {"seasons": sorted(set(result))}
 
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
@@ -125,9 +143,14 @@ async def simulate(request: SimulationRequest):
     train_seasons = [year_to_season_code(y) for y in range(request.train_season_start, request.train_season_end + 1)]
     test_seasons = [year_to_season_code(y) for y in range(request.test_season_start, request.test_season_end + 1)]
     
-    # Filter data
+    # Filter training data
     train_df = df[df['season'].isin(train_seasons)]
-    test_df = df[df['season'].isin(test_seasons)].copy()
+    
+    # Handle test data - check if 2024-25 is requested
+    if 20242025 in test_seasons and df_2024_25 is not None:
+        test_df = df_2024_25.copy()
+    else:
+        test_df = df[df['season'].isin(test_seasons)].copy()
     
     if len(train_df) == 0:
         raise HTTPException(status_code=400, detail="Brak danych treningowych")
