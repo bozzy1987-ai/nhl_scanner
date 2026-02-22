@@ -15,12 +15,14 @@ import json
 DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
 TEAM_STATS_PATH = Path(__file__).parent / "data" / "teams_2008_to_2024.csv"
 DATA_2024_25_PATH = Path(__file__).parent / "data" / "test_predictions_2024_25.csv"
+DATA_2025_26_PATH = Path(__file__).parent / "data" / "nhl_game_results_2025_26.csv"
 
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
 df = None
 df_2024_25 = None
+df_2025_26 = None
 teams = None
 
 def load_data():
@@ -79,12 +81,22 @@ def load_data():
         if DATA_2024_25_PATH.exists():
             df_2024_25 = pd.read_csv(DATA_2024_25_PATH)
             df_2024_25['season'] = 20242025
-            # Replace UTA with ARI
             df_2024_25['home_team'] = df_2024_25['home_team'].replace('UTA', 'ARI')
             df_2024_25['away_team'] = df_2024_25['away_team'].replace('UTA', 'ARI')
             print(f"Loaded {len(df)} games + {len(df_2024_25)} 2024-25 games")
         else:
             print(f"Loaded {len(df)} games")
+        
+        # Load 2025-26 data if available
+        if DATA_2025_26_PATH.exists():
+            df_2025_26 = pd.read_csv(DATA_2025_26_PATH)
+            df_2025_26['season'] = 20252026
+            # UTA -> ARI for games, but stats use UTA so map back
+            df_2025_26['home_team_orig'] = df_2025_26['home_team']
+            df_2025_26['away_team_orig'] = df_2025_26['away_team']
+            df_2025_26['home_team'] = df_2025_26['home_team'].replace('ARI', 'UTA')
+            df_2025_26['away_team'] = df_2025_26['away_team'].replace('ARI', 'UTA')
+            print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
     except Exception as e:
         print(f"Error loading data: {e}")
@@ -125,9 +137,11 @@ async def get_seasons():
     seasons = sorted(df['season'].unique())
     result = [int(str(s)[:4]) for s in seasons]
     
-    # Add 2024 for 2024-25
+    # Add 2024 for 2024-25, 2025 for 2025-26
     if df_2024_25 is not None:
         result.append(2024)
+    if df_2025_26 is not None:
+        result.append(2025)
     
     return {"seasons": sorted(set(result))}
 
@@ -146,9 +160,11 @@ async def simulate(request: SimulationRequest):
     # Filter training data
     train_df = df[df['season'].isin(train_seasons)]
     
-    # Handle test data - check if 2024-25 is requested
+    # Handle test data - check if 2024-25 or 2025-26 is requested
     if 20242025 in test_seasons and df_2024_25 is not None:
         test_df = df_2024_25.copy()
+    elif 20252026 in test_seasons and df_2025_26 is not None:
+        test_df = df_2025_26.copy()
     else:
         test_df = df[df['season'].isin(test_seasons)].copy()
     
