@@ -196,3 +196,88 @@
 .bets-table .loss {
   color: #f44336;
 }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  background: #16213e;
+}
+
+.tabs button {
+  padding: 12px 24px;
+  background: #0f3460;
+  color: #eee;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.3s;
+}
+
+.tabs button:hover {
+  background: #1a4a7a;
+}
+
+.tabs button.active {
+  background: #e94560;
+}
+
+/* Schedule Section */
+.schedule-section {
+  background: #16213e;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+.schedule-section h2 {
+  color: #e94560;
+  margin-top: 0;
+}
+
+.schedule-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #0f3460;
+  border-radius: 8px;
+}
+
+.schedule-controls label {
+  font-size: 1rem;
+}
+
+.schedule-controls input[type="range"] {
+  flex: 1;
+}
+
+.schedule-controls button {
+  padding: 10px 20px;
+  background: #e94560;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.schedule-controls button:disabled {
+  background: #666;
+}
+
+.schedule-info {
+  margin-bottom: 15px;
+  color: #888;
+}
+
+.bets-table .bet-row {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.bets-table .bet {
+  color: #4caf50;
+  font-weight: bold;
+}
