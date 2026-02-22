@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI backend for NHL Hockey Analytics - z prawdziwymi danymi
+FastAPI backend for NHL Hockey Analytics - dynamic training
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,38 +8,82 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
-import joblib
+import xgboost as xgb
 from pathlib import Path
+import json
 
-MODEL_PATH = Path(__file__).parent / "model" / "hockey_model.pkl"
 DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
-DATA_2024_25_PATH = Path(__file__).parent / "data" / "test_predictions_2024_25.csv"
+TEAM_STATS_PATH = Path(__file__).parent.parent / "teams_2008_to_2024.csv"
 
-model = None
-df = None
-df_2024_25 = None
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
+df = None
+teams = None
+
+def load_data():
+    global df, teams
+    try:
+        # Load game results
+        games = pd.read_csv(DATA_PATH)
+        games['season'] = games['season'].astype(int)
+        
+        # Load team stats
+        teams = pd.read_csv(TEAM_STATS_PATH)
+        teams = teams[teams['situation'] == 'all']
+        
+        # Fix team names
+        games['home_team'] = games['home_team'].replace('PHX', 'ARI')
+        games['away_team'] = games['away_team'].replace('PHX', 'ARI')
+        
+        # Build features
+        features = []
+        games['season_year'] = games['season'].astype(str).str[:4].astype(int)
+        
+        for idx, row in games.iterrows():
+            season_year = row['season_year']
+            home = row['home_team']
+            away = row['away_team']
+            
+            home_stats = teams[(teams['team'] == home) & (teams['season'] == season_year)]
+            away_stats = teams[(teams['team'] == away) & (teams['season'] == season_year)]
+            
+            if len(home_stats) == 0 or len(away_stats) == 0:
+                continue
+            
+            home_s = home_stats.iloc[0]
+            away_s = away_stats.iloc[0]
+            
+            features.append({
+                'season': row['season'],
+                'date': row['date'],
+                'home_team': home,
+                'away_team': away,
+                'home_gf': row['home_gf'],
+                'away_gf': row['away_gf'],
+                'home_xg_pct': home_s['xGoalsPercentage'],
+                'home_cf_pct': home_s['corsiPercentage'],
+                'away_xg_pct': away_s['xGoalsPercentage'],
+                'away_cf_pct': away_s['corsiPercentage'],
+                'home_goals_for': home_s['goalsFor'],
+                'home_goals_against': home_s['goalsAgainst'],
+                'away_goals_for': away_s['goalsFor'],
+                'away_goals_against': away_s['goalsAgainst'],
+            })
+        
+        df = pd.DataFrame(features)
+        print(f"Loaded {len(df)} games with features")
+        
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        raise
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model, df, df_2024_25
-    try:
-        model = joblib.load(MODEL_PATH)
-        df = pd.read_csv(DATA_PATH)
-        df['season'] = df['season'].astype(int)
-        
-        # Load 2024-25 data
-        if DATA_2024_25_PATH.exists():
-            df_2024_25 = pd.read_csv(DATA_2024_25_PATH)
-            df_2024_25['season'] = 20242025
-        
-        print(f"Loaded model and {len(df)} games + {len(df_2024_25) if df_2024_25 is not None else 0} 2024-25 games")
-    except Exception as e:
-        print(f"Error loading: {e}")
+    load_data()
     yield
 
-app = FastAPI(title="Hockey Analytics API", version="2.0", lifespan=lifespan)
+app = FastAPI(title="Hockey Analytics API", version="3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,7 +103,7 @@ class SimulationRequest(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Hockey Analytics API v2.0", "version": "2.0.0"}
+    return {"message": "Hockey Analytics API v3.0 - Dynamic Training"}
 
 @app.get("/seasons")
 async def get_seasons():
@@ -67,41 +111,56 @@ async def get_seasons():
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     seasons = sorted(df['season'].unique())
-    result = [int(str(s)[:4]) for s in seasons]
-    
-    # Add 2024 for 2024-25
-    if df_2024_25 is not None:
-        result.append(2024)
-    
-    return {"seasons": sorted(set(result))}
+    return {"seasons": [int(s) for s in seasons]}
 
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
-    if model is None or df is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+    if df is None:
+        raise HTTPException(status_code=500, detail="Data not loaded")
     
-    # Get test seasons
-    test_years = list(range(request.test_season_start, request.test_season_end + 1))
-    test_seasons = [y * 10000 + (y + 1) % 10000 for y in test_years]
+    # Convert years to season codes
+    def year_to_season_code(year):
+        return year * 10000 + (year + 1) % 10000
     
-    # Check if 2024-25 is requested
-    if 20242025 in test_seasons and df_2024_25 is not None:
-        test_df = df_2024_25.copy()
-    else:
-        test_df = df[df['season'].isin(test_seasons)].copy()
+    train_seasons = [year_to_season_code(y) for y in range(request.train_season_start, request.train_season_end + 1)]
+    test_seasons = [year_to_season_code(y) for y in range(request.test_season_start, request.test_season_end + 1)]
     
+    # Filter data
+    train_df = df[df['season'].isin(train_seasons)]
+    test_df = df[df['season'].isin(test_seasons)].copy()
+    
+    if len(train_df) == 0:
+        raise HTTPException(status_code=400, detail="Brak danych treningowych")
     if len(test_df) == 0:
-        raise HTTPException(status_code=400, detail="Brak danych dla wybranych sezonów")
+        raise HTTPException(status_code=400, detail="Brak danych testowych")
     
-    # Make predictions
-    X_test = test_df[feature_cols].copy()
+    # Create target
+    train_df = train_df.copy()
+    test_df = test_df.copy()
+    train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
+    test_df['home_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
+    
+    # Train model dynamically
+    X_train = train_df[feature_cols]
+    y_train = train_df['home_3_plus']
+    
+    model = xgb.XGBClassifier(
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        eval_metric='logloss'
+    )
+    model.fit(X_train, y_train)
+    
+    # Predict
+    X_test = test_df[feature_cols]
     probabilities = model.predict_proba(X_test)[:, 1]
     test_df['predicted_prob'] = probabilities
     
-    # Target: home team scores 3+ goals
-    test_df['actual_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
-    
-    # Filter by confidence threshold
+    # Filter by threshold
     threshold = request.confidence_threshold / 100
     qualifying_bets = test_df[test_df['predicted_prob'] >= threshold].copy()
     
@@ -114,11 +173,11 @@ async def simulate(request: SimulationRequest):
             "matched_bets": 0,
             "bankroll_history": [],
             "bets": [],
-            "comment": "Brak meczów spełniających próg confidence. Spróbuj obniżyć próg."
+            "comment": "Brak meczów spełniających próg confidence."
         }
     
-    # Calculate profit (60 PLN win for 100 PLN bet)
-    qualifying_bets['won'] = (qualifying_bets['actual_3_plus'] == 1).astype(int)
+    # Calculate results
+    qualifying_bets['won'] = (qualifying_bets['home_3_plus'] == 1).astype(int)
     qualifying_bets['profit'] = np.where(
         qualifying_bets['won'] == 1,
         request.bet_amount * 0.6,
@@ -153,7 +212,7 @@ async def simulate(request: SimulationRequest):
         "matched_bets": len(qualifying_bets),
         "bankroll_history": bankroll_history,
         "bets": bankroll_history,
-        "comment": f"ROI: {roi_percent:.1f}%, Hit rate: {hit_rate:.1f}% przy progu {request.confidence_threshold}%"
+        "comment": f"Model trenowany na {len(X_train)} meczach. ROI: {roi_percent:.1f}%, Hit rate: {hit_rate:.1f}%"
     }
 
 if __name__ == "__main__":
