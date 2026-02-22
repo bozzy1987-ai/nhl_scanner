@@ -1,0 +1,11 @@
+# Intermediate data files (already merged in nhl_game_results.csv)
+backend/data/nhl_game_results_*.csv
+backend/data/nhl_games_*.csv
+backend/data/quick_fetch.py
+backend/data/fetch_nst.py
+backend/data/.~*
+
+# Python cache
+__pycache__/
+*.pyc
+backend/model/__pycache__/
