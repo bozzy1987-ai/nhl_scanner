@@ -13,7 +13,7 @@ from pathlib import Path
 import json
 
 DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
-TEAM_STATS_PATH = Path(__file__).parent.parent / "teams_2008_to_2024.csv"
+TEAM_STATS_PATH = Path(__file__).parent / "data" / "teams_2008_to_2024.csv"
 
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
