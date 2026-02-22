@@ -254,24 +254,20 @@ async def simulate(request: SimulationRequest):
     # Select features based on model version
     features = feature_cols_v2 if request.model_version.startswith("v2") else feature_cols
     
-    # Train model dynamically
+    # Train model dynamically - always train, don't use saved model for backtesting
     X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
-    saved_model = load_model(request.model_version)
-    if saved_model is not None:
-        model = saved_model
-    else:
-        model = xgb.XGBClassifier(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.1,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            eval_metric='logloss'
-        )
-        model.fit(X_train, y_train)
+    model = xgb.XGBClassifier(
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        eval_metric='logloss'
+    )
+    model.fit(X_train, y_train)
     
     # Predict
     X_test = test_df[features]
