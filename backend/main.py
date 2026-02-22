@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+import joblib
 from pathlib import Path
 import json
 
@@ -16,6 +17,7 @@ DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
 TEAM_STATS_PATH = Path(__file__).parent / "data" / "teams_2008_to_2024.csv"
 DATA_2024_25_PATH = Path(__file__).parent / "data" / "test_predictions_2024_25.csv"
 DATA_2025_26_PATH = Path(__file__).parent / "data" / "nhl_game_results_2025_26.csv"
+MODELS_PATH = Path(__file__).parent / "models"
 
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
@@ -121,6 +123,7 @@ def load_data():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    MODELS_PATH.mkdir(exist_ok=True)
     load_data()
     yield
 
@@ -141,6 +144,7 @@ class SimulationRequest(BaseModel):
     test_season_end: int
     confidence_threshold: float
     bet_amount: float
+    model_version: str = "v1"
 
 @app.get("/")
 async def root():
@@ -209,16 +213,20 @@ async def simulate(request: SimulationRequest):
     X_train = train_df[feature_cols]
     y_train = train_df['home_3_plus']
     
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        eval_metric='logloss'
-    )
-    model.fit(X_train, y_train)
+    saved_model = load_model(request.model_version)
+    if saved_model is not None:
+        model = saved_model
+    else:
+        model = xgb.XGBClassifier(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            eval_metric='logloss'
+        )
+        model.fit(X_train, y_train)
     
     # Predict
     X_test = test_df[feature_cols]
@@ -281,7 +289,7 @@ async def simulate(request: SimulationRequest):
     }
 
 @app.get("/schedule")
-async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
+async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_version: str = "v1"):
     """Get upcoming games and predictions"""
     import requests
     from datetime import datetime, timedelta
@@ -425,13 +433,13 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
             return {"games": all_games[:50], "message": f"Found {len(all_games)} games"}
         
         # Build predictions
-        return await _build_predictions(all_games, threshold)
+        return await _build_predictions(all_games, threshold, model_version)
         
     except Exception as e:
         return {"error": str(e)[:200], "games": []}
 
 
-async def _build_predictions(all_games, threshold):
+async def _build_predictions(all_games, threshold, model_version="v1"):
     """Helper to build ML predictions"""
     global combined_df
     
@@ -483,11 +491,15 @@ async def _build_predictions(all_games, threshold):
     X_train = train_df[feature_cols]
     y_train = train_df['home_3_plus']
     
-    model = xgb.XGBClassifier(
-        n_estimators=100, max_depth=5, learning_rate=0.1,
-        subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
-    )
-    model.fit(X_train, y_train)
+    saved_model = load_model(model_version)
+    if saved_model is not None:
+        model = saved_model
+    else:
+        model = xgb.XGBClassifier(
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+        )
+        model.fit(X_train, y_train)
     
     # Predict
     threshold_val = threshold / 100
@@ -524,6 +536,58 @@ async def _build_predictions(all_games, threshold):
         "threshold": threshold,
         "message": f"Found {len(results)} games, {bet_count} qualify for betting"
     }
+
+
+def save_model(model, version: str):
+    path = MODELS_PATH / f"model_{version}.pkl"
+    joblib.dump(model, path)
+    return str(path)
+
+
+def load_model(version: str):
+    path = MODELS_PATH / f"model_{version}.pkl"
+    if path.exists():
+        return joblib.load(path)
+    return None
+
+
+@app.get("/models")
+async def list_models():
+    available = []
+    for f in MODELS_PATH.glob("model_*.pkl"):
+        available.append(f.stem.replace("model_", ""))
+    if not available:
+        available = ["v1"]
+    return {"models": available}
+
+
+@app.post("/models/{version}/train")
+async def train_and_save_model(version: str):
+    global combined_df
+    if combined_df is None:
+        all_data = [df]
+        if df_2024_25 is not None:
+            all_data.append(df_2024_25)
+        if df_2025_26 is not None:
+            all_data.append(df_2025_26)
+        combined_df = pd.concat(all_data, ignore_index=True)
+    
+    train_seasons = [20132014, 20142015, 20152016, 20162017, 20172018, 20182019, 20192020, 20202021, 20212022, 20222023, 20232024, 20242025]
+    train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
+    train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
+    
+    X_train = train_df[feature_cols]
+    y_train = train_df['home_3_plus']
+    
+    model = xgb.XGBClassifier(
+        n_estimators=100, max_depth=5, learning_rate=0.1,
+        subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+    )
+    model.fit(X_train, y_train)
+    
+    path = save_model(model, version)
+    return {"status": "saved", "version": version, "path": path, "train_samples": len(X_train)}
+
 
 if __name__ == "__main__":
     import uvicorn

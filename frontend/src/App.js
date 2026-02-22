@@ -7,6 +7,8 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 function App() {
   const [seasons, setSeasons] = useState([]);
+  const [models, setModels] = useState(['v1']);
+  const [modelVersion, setModelVersion] = useState('v1');
   const [trainStart, setTrainStart] = useState(2013);
   const [trainEnd, setTrainEnd] = useState(2024);
   const [testStart, setTestStart] = useState(2025);
@@ -23,6 +25,15 @@ function App() {
 
   useEffect(() => {
     setSeasons([2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]);
+    
+    axios.get(`${API_URL}/models`)
+      .then(res => {
+        if (res.data.models && res.data.models.length > 0) {
+          setModels(res.data.models);
+          setModelVersion(res.data.models[0]);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const runSimulation = async () => {
@@ -37,7 +48,8 @@ function App() {
         test_season_start: testStart,
         test_season_end: testEnd,
         confidence_threshold: confidence,
-        bet_amount: betAmount
+        bet_amount: betAmount,
+        model_version: modelVersion
       });
       setResults(response.data);
     } catch (err) {
@@ -50,7 +62,7 @@ function App() {
   const loadSchedule = async () => {
     setScheduleLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/schedule?days_ahead=30&threshold=${scheduleThreshold}`);
+      const response = await axios.get(`${API_URL}/schedule?days_ahead=30&threshold=${scheduleThreshold}&model_version=${modelVersion}`);
       setScheduleData(response.data);
     } catch (err) {
       console.error(err);
@@ -85,6 +97,13 @@ function App() {
                 <label>Sezon treningowy (początek):</label>
                 <select value={trainStart} onChange={(e) => setTrainStart(Number(e.target.value))}>
                   {seasons.map(s => <option key={s} value={s}>{s}/{s+1}</option>)}
+                </select>
+              </div>
+              
+              <div className="control-group">
+                <label>Model:</label>
+                <select value={modelVersion} onChange={(e) => setModelVersion(e.target.value)}>
+                  {models.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
                 </select>
               </div>
               
@@ -221,6 +240,11 @@ function App() {
             <h2>Najbliższe Mecze - Typy</h2>
             
             <div className="schedule-controls">
+              <label>Model:</label>
+              <select value={modelVersion} onChange={(e) => setModelVersion(e.target.value)}>
+                {models.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
+              </select>
+              
               <label>Próg confidence: {scheduleThreshold}%</label>
               <input 
                 type="range" 
