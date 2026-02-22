@@ -355,8 +355,8 @@ async def _build_predictions(all_games, threshold):
             'date': game['date'],
             'home_team': game['home_team'],
             'away_team': game['away_team'],
-            'home_xg_pct': home_s['xGoalsPercentage'],
-            'away_xg_pct': away_s['xGoalsPercentage'],
+            'home_xg_pct': float(home_s['xGoalsPercentage']),
+            'away_xg_pct': float(away_s['xGoalsPercentage']),
         })
     
     # Train model
@@ -392,7 +392,7 @@ async def _build_predictions(all_games, threshold):
             away_s['goalsFor'], away_s['goalsAgainst']
         ]]
         
-        prob = model.predict_proba(features)[0][1]
+        prob = float(model.predict_proba(features)[0][1])
         pred['predicted_prob'] = round(prob * 100, 1)
         pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
         
