@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn pandas numpy xgboost scikit-learn joblib pydantic
+RUN pip install --no-cache-dir fastapi uvicorn pandas numpy xgboost scikit-learn joblib pydantic requests
 
 COPY model/ /app/model/
 COPY data/ /app/data/
