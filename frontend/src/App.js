@@ -50,7 +50,7 @@ function App() {
   const loadSchedule = async () => {
     setScheduleLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/schedule?days_ahead=7&threshold=${scheduleThreshold}`);
+      const response = await axios.get(`${API_URL}/schedule?days_ahead=30&threshold=${scheduleThreshold}`);
       setScheduleData(response.data);
     } catch (err) {
       console.error(err);
