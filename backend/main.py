@@ -278,7 +278,7 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     
     try:
         if df is None:
-            raise HTTPException(status_code=500, detail="Data not loaded")
+            return {"error": "Data not loaded", "games": []}
         
         # Build combined_df if not exists
         if combined_df is None:
@@ -293,16 +293,21 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
         teams_2024_25 = teams[teams['season'] == 2024].copy()
         
         if len(teams_2024_25) == 0:
-            raise HTTPException(status_code=500, detail="No team stats for 2024")
+            return {"error": "No team stats for 2024", "games": []}
         
         # Fetch upcoming games from NHL API
         all_games = []
+        
+        # Get today's date
+        now = datetime.now()
+        today_str = now.strftime('%Y-%m-%d')
+        
         for day_offset in range(days_ahead):
-            date = datetime.now() + timedelta(days=day_offset)
+            date = now + timedelta(days=day_offset)
             date_str = date.strftime('%Y-%m-%d')
             
             try:
-                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=15)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get('gameWeek'):
@@ -321,7 +326,7 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
                 print(f"Error fetching {date_str}: {e}")
         
         if not all_games:
-            return {"games": [], "message": "No upcoming games found"}
+            return {"games": [], "message": f"No upcoming games found. Checked {days_ahead} days starting from {today_str}"}
         
         # Map team names
         team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
@@ -419,7 +424,7 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     except Exception as e:
         import traceback
         print(f"Schedule error: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"error": str(e), "games": []}
 
 if __name__ == "__main__":
     import uvicorn
