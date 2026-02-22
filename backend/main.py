@@ -276,6 +276,16 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     if df is None:
         raise HTTPException(status_code=500, detail="Data not loaded")
     
+    # Build combined_df if not exists
+    global combined_df
+    if combined_df is None:
+        all_data = [df]
+        if df_2024_25 is not None:
+            all_data.append(df_2024_25)
+        if df_2025_26 is not None:
+            all_data.append(df_2025_26)
+        combined_df = pd.concat(all_data, ignore_index=True)
+    
     # Get team stats for 2024-25 (for predicting 2025-26)
     teams_2024_25 = teams[teams['season'] == 2024].copy()
     
