@@ -529,20 +529,17 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     train_df = combined_df_ref[combined_df_ref['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
-    features = feature_cols_v2 if model_version == "v2" else feature_cols
+    features = feature_cols_v2 if model_version.startswith("v2") else feature_cols
     
     X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
-    saved_model = load_model(model_version)
-    if saved_model is not None:
-        model = saved_model
-    else:
-        model = xgb.XGBClassifier(
-            n_estimators=100, max_depth=5, learning_rate=0.1,
-            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
-        )
-        model.fit(X_train, y_train)
+    # Always train fresh for schedule - don't use saved model
+    model = xgb.XGBClassifier(
+        n_estimators=100, max_depth=5, learning_rate=0.1,
+        subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+    )
+    model.fit(X_train, y_train)
     
     # Predict
     threshold_val = threshold / 100
