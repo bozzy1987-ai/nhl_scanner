@@ -277,8 +277,43 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
     global combined_df
     
     try:
+        # Simple test first
+        test_resp = requests.get("https://api-web.nhle.com/v1/schedule/2026-02-26", timeout=15)
+        if test_resp.status_code != 200:
+            return {"error": f"NHL API error: {test_resp.status_code}", "games": []}
+        
+        # Fetch all games
+        all_games = []
+        now = datetime.now()
+        
+        for day_offset in range(days_ahead):
+            date = now + timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek') and len(data['gameWeek']) > 0:
+                        for day in data['gameWeek']:
+                            for game in day.get('games', []):
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                if home and away:
+                                    all_games.append({
+                                        'date': date_str,
+                                        'home_team': home,
+                                        'away_team': away,
+                                    })
+            except Exception as e:
+                print(f"Error fetching {date_str}: {e}")
+        
+        if not all_games:
+            return {"games": [], "message": f"No upcoming games in next {days_ahead} days"}
+        
+        # Build predictions if we have data
         if df is None:
-            return {"error": "Data not loaded", "games": []}
+            return {"games": all_games[:20], "message": "Data not loaded, showing raw schedule"}
         
         # Build combined_df if not exists
         if combined_df is None:
@@ -289,57 +324,20 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
                 all_data.append(df_2025_26)
             combined_df = pd.concat(all_data, ignore_index=True)
         
-        # Get team stats for 2024-25 (for predicting 2025-26)
+        # Get team stats
         teams_2024_25 = teams[teams['season'] == 2024].copy()
         
         if len(teams_2024_25) == 0:
-            return {"error": "No team stats for 2024", "games": []}
-        
-        # Fetch upcoming games from NHL API
-        all_games = []
-        
-        # Get today's date
-        now = datetime.now()
-        today_str = now.strftime('%Y-%m-%d')
-        
-        for day_offset in range(days_ahead):
-            date = now + timedelta(days=day_offset)
-            date_str = date.strftime('%Y-%m-%d')
-            
-            try:
-                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=15)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get('gameWeek'):
-                        for day in data['gameWeek']:
-                            for game in day.get('games', []):
-                                home = game.get('homeTeam', {}).get('abbrev', '')
-                                away = game.get('awayTeam', {}).get('abbrev', '')
-                                if home and away:
-                                    all_games.append({
-                                        'date': date_str,
-                                        'home_team': home,
-                                        'away_team': away,
-                                        'game_id': game.get('id')
-                                    })
-            except Exception as e:
-                print(f"Error fetching {date_str}: {e}")
-        
-        if not all_games:
-            return {"games": [], "message": f"No upcoming games found. Checked {days_ahead} days starting from {today_str}"}
+            return {"games": all_games[:20], "message": "No team stats, showing raw schedule"}
         
         # Map team names
         team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
         
-        # Build features for each game
+        # Build features
         predictions = []
         for game in all_games:
-            home = game['home_team']
-            away = game['away_team']
-            
-            # Apply team name mapping
-            homeMapped = team_map.get(home, home)
-            awayMapped = team_map.get(away, away)
+            homeMapped = team_map.get(game['home_team'], game['home_team'])
+            awayMapped = team_map.get(game['away_team'], game['away_team'])
             
             home_stats = teams_2024_25[teams_2024_25['team'] == homeMapped]
             away_stats = teams_2024_25[teams_2024_25['team'] == awayMapped]
@@ -350,29 +348,15 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
             home_s = home_stats.iloc[0]
             away_s = away_stats.iloc[0]
             
-            features = [[
-                home_s['xGoalsPercentage'],
-                home_s['corsiPercentage'],
-                away_s['xGoalsPercentage'],
-                away_s['corsiPercentage'],
-                home_s['goalsFor'],
-                home_s['goalsAgainst'],
-                away_s['goalsFor'],
-                away_s['goalsAgainst']
-            ]]
-            
             predictions.append({
                 'date': game['date'],
-                'home_team': home,
-                'away_team': away,
+                'home_team': game['home_team'],
+                'away_team': game['away_team'],
                 'home_xg_pct': home_s['xGoalsPercentage'],
                 'away_xg_pct': away_s['xGoalsPercentage'],
-                'home_cf_pct': home_s['corsiPercentage'],
-                'away_cf_pct': away_s['corsiPercentage'],
-                'features': features
             })
         
-        # Train model on recent seasons
+        # Train model
         train_seasons = [20232024, 20242025]
         train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
         train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
@@ -381,13 +365,8 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
         y_train = train_df['home_3_plus']
         
         model = xgb.XGBClassifier(
-            n_estimators=100,
-            max_depth=5,
-            learning_rate=0.1,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            random_state=42,
-            eval_metric='logloss'
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
         )
         model.fit(X_train, y_train)
         
@@ -397,22 +376,27 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
         bet_count = 0
         
         for pred in predictions:
-            prob = model.predict_proba(pred['features'])[0][1]
+            homeMapped = team_map.get(pred['home_team'], pred['home_team'])
+            awayMapped = team_map.get(pred['away_team'], pred['away_team'])
+            
+            home_s = teams_2024_25[teams_2024_25['team'] == homeMapped].iloc[0]
+            away_s = teams_2024_25[teams_2024_25['team'] == awayMapped].iloc[0]
+            
+            features = [[
+                home_s['xGoalsPercentage'], home_s['corsiPercentage'],
+                away_s['xGoalsPercentage'], away_s['corsiPercentage'],
+                home_s['goalsFor'], home_s['goalsAgainst'],
+                away_s['goalsFor'], away_s['goalsAgainst']
+            ]]
+            
+            prob = model.predict_proba(features)[0][1]
             pred['predicted_prob'] = round(prob * 100, 1)
             pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
             
             if prob >= threshold_val:
                 bet_count += 1
             
-            results.append({
-                'date': pred['date'],
-                'home_team': pred['home_team'],
-                'away_team': pred['away_team'],
-                'home_xg_pct': pred['home_xg_pct'],
-                'away_xg_pct': pred['away_xg_pct'],
-                'predicted_prob': pred['predicted_prob'],
-                'bet_recommendation': pred['bet_recommendation']
-            })
+            results.append(pred)
         
         return {
             "games": results[:20],
@@ -421,11 +405,10 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
             "threshold": threshold,
             "message": f"Found {len(results)} games, {bet_count} qualify for betting"
         }
+        
     except Exception as e:
         import traceback
-        error_msg = traceback.format_exc()
-        print(f"Schedule error: {error_msg}")
-        return {"error": str(e)[:200], "games": [], "trace": error_msg[:500]}
+        return {"error": str(e)[:300], "games": [], "trace": traceback.format_exc()[:500]}
 
 if __name__ == "__main__":
     import uvicorn
