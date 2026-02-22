@@ -289,12 +289,13 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
                     data = resp.json()
                     if data.get('gameWeek') and len(data.get('gameWeek', [])) > 0:
                         for day in data['gameWeek']:
+                            game_date = day.get('date', date_str)
                             for game in day.get('games', []):
                                 home = game.get('homeTeam', {}).get('abbrev', '')
                                 away = game.get('awayTeam', {}).get('abbrev', '')
                                 if home and away:
                                     all_games.append({
-                                        'date': date_str,
+                                        'date': game_date,
                                         'home_team': home,
                                         'away_team': away,
                                     })
