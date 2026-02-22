@@ -269,9 +269,8 @@ async def simulate(request: SimulationRequest):
     }
 
 @app.get("/schedule")
-async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
-    """Get upcoming games and predictions"""
-    return {"message": "Schedule endpoint works", "games": []}
+async def get_schedule():
+    return {"message": "hello"}
 
 
 async def _build_predictions(all_games, threshold, teams, combined_df_input, feature_cols, xgb):
