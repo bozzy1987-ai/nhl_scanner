@@ -22,6 +22,11 @@ MODELS_PATH = Path(__file__).parent / "models"
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
+feature_cols_v2 = ['home_xg_pct', 'home_cf_pct', 'home_ff_pct', 'away_xg_pct', 'away_cf_pct', 'away_ff_pct',
+                   'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against',
+                   'home_shots_for', 'home_shots_against', 'away_shots_for', 'away_shots_against',
+                   'home_high_danger', 'away_high_danger']
+
 df = None
 df_2024_25 = None
 df_2025_26 = None
@@ -70,16 +75,35 @@ def load_data():
                 'away_gf': row['away_gf'],
                 'home_xg_pct': home_s['xGoalsPercentage'],
                 'home_cf_pct': home_s['corsiPercentage'],
+                'home_ff_pct': home_s.get('fenwickPercentage', 50),
                 'away_xg_pct': away_s['xGoalsPercentage'],
                 'away_cf_pct': away_s['corsiPercentage'],
+                'away_ff_pct': away_s.get('fenwickPercentage', 50),
                 'home_goals_for': home_s['goalsFor'],
                 'home_goals_against': home_s['goalsAgainst'],
                 'away_goals_for': away_s['goalsFor'],
                 'away_goals_against': away_s['goalsAgainst'],
+                'home_shots_for': home_s.get('shotsOnGoalFor', 0),
+                'home_shots_against': home_s.get('shotsOnGoalAgainst', 0),
+                'away_shots_for': away_s.get('shotsOnGoalFor', 0),
+                'away_shots_against': away_s.get('shotsOnGoalAgainst', 0),
+                'home_high_danger': home_s.get('highDangerShotsFor', 0),
+                'away_high_danger': away_s.get('highDangerShotsFor', 0),
             })
         
         df = pd.DataFrame(features)
         print(f"Loaded {len(df)} games (2013-2024 + 2025-26)")
+        
+        # Add v2 columns to df
+        if 'home_ff_pct' not in df.columns:
+            df['home_ff_pct'] = 50.0
+            df['away_ff_pct'] = 50.0
+            df['home_shots_for'] = 0
+            df['home_shots_against'] = 0
+            df['away_shots_for'] = 0
+            df['away_shots_against'] = 0
+            df['home_high_danger'] = 0
+            df['away_high_danger'] = 0
         
         # Load 2024-25 data if available
         if DATA_2024_25_PATH.exists():
@@ -87,6 +111,15 @@ def load_data():
             df_2024_25['season'] = 20242025
             df_2024_25['home_team'] = df_2024_25['home_team'].replace('UTA', 'ARI')
             df_2024_25['away_team'] = df_2024_25['away_team'].replace('UTA', 'ARI')
+            # Add v2 columns
+            df_2024_25['home_ff_pct'] = 50.0
+            df_2024_25['away_ff_pct'] = 50.0
+            df_2024_25['home_shots_for'] = 0
+            df_2024_25['home_shots_against'] = 0
+            df_2024_25['away_shots_for'] = 0
+            df_2024_25['away_shots_against'] = 0
+            df_2024_25['home_high_danger'] = 0
+            df_2024_25['away_high_danger'] = 0
             print(f"Loaded {len(df_2024_25)} 2024-25 games")
         
         # Load 2025-26 data if available
@@ -95,6 +128,15 @@ def load_data():
             df_2025_26['season'] = 20252026
             df_2025_26['home_team'] = df_2025_26['home_team'].replace('UTA', 'ARI')
             df_2025_26['away_team'] = df_2025_26['away_team'].replace('UTA', 'ARI')
+            # Add v2 columns
+            df_2025_26['home_ff_pct'] = 50.0
+            df_2025_26['away_ff_pct'] = 50.0
+            df_2025_26['home_shots_for'] = 0
+            df_2025_26['home_shots_against'] = 0
+            df_2025_26['away_shots_for'] = 0
+            df_2025_26['away_shots_against'] = 0
+            df_2025_26['home_high_danger'] = 0
+            df_2025_26['away_high_danger'] = 0
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
         # Load new games if exists (auto-updated)
@@ -209,8 +251,11 @@ async def simulate(request: SimulationRequest):
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     test_df['home_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
     
+    # Select features based on model version
+    features = feature_cols_v2 if request.model_version == "v2" else feature_cols
+    
     # Train model dynamically
-    X_train = train_df[feature_cols]
+    X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
     saved_model = load_model(request.model_version)
@@ -229,7 +274,7 @@ async def simulate(request: SimulationRequest):
         model.fit(X_train, y_train)
     
     # Predict
-    X_test = test_df[feature_cols]
+    X_test = test_df[features]
     probabilities = model.predict_proba(X_test)[:, 1]
     test_df['predicted_prob'] = probabilities
     
@@ -488,7 +533,9 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     train_df = combined_df_ref[combined_df_ref['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
-    X_train = train_df[feature_cols]
+    features = feature_cols_v2 if model_version == "v2" else feature_cols
+    
+    X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
     saved_model = load_model(model_version)
@@ -506,6 +553,9 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     results = []
     bet_count = 0
     
+    # Use v2 features if model_version is v2
+    use_v2 = model_version == "v2"
+    
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
         awayMapped = team_map.get(pred['away_team'], pred['away_team'])
@@ -513,12 +563,23 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
         home_s = teams_2024_25[teams_2024_25['team'] == homeMapped].iloc[0]
         away_s = teams_2024_25[teams_2024_25['team'] == awayMapped].iloc[0]
         
-        features = [[
-            home_s['xGoalsPercentage'], home_s['corsiPercentage'],
-            away_s['xGoalsPercentage'], away_s['corsiPercentage'],
-            home_s['goalsFor'], home_s['goalsAgainst'],
-            away_s['goalsFor'], away_s['goalsAgainst']
-        ]]
+        if use_v2:
+            features = [[
+                home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
+                away_s['xGoalsPercentage'], away_s['corsiPercentage'], away_s.get('fenwickPercentage', 50),
+                home_s['goalsFor'], home_s['goalsAgainst'],
+                away_s['goalsFor'], away_s['goalsAgainst'],
+                home_s.get('shotsOnGoalFor', 0), home_s.get('shotsOnGoalAgainst', 0),
+                away_s.get('shotsOnGoalFor', 0), away_s.get('shotsOnGoalAgainst', 0),
+                home_s.get('highDangerShotsFor', 0), away_s.get('highDangerShotsFor', 0)
+            ]]
+        else:
+            features = [[
+                home_s['xGoalsPercentage'], home_s['corsiPercentage'],
+                away_s['xGoalsPercentage'], away_s['corsiPercentage'],
+                home_s['goalsFor'], home_s['goalsAgainst'],
+                away_s['goalsFor'], away_s['goalsAgainst']
+            ]]
         
         prob = float(model.predict_proba(features)[0][1])
         pred['predicted_prob'] = round(prob * 100, 1)
@@ -576,7 +637,9 @@ async def train_and_save_model(version: str):
     train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
-    X_train = train_df[feature_cols]
+    features = feature_cols_v2 if version == "v2" else feature_cols
+    
+    X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
     model = xgb.XGBClassifier(
