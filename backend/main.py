@@ -26,21 +26,21 @@ df_2025_26 = None
 teams = None
 
 def load_data():
-    global df, df_2024_25, teams
+    global df, df_2024_25, df_2025_26, teams
     try:
-        # Load game results
-        games = pd.read_csv(DATA_PATH)
-        games['season'] = games['season'].astype(int)
-        
         # Load team stats
         teams = pd.read_csv(TEAM_STATS_PATH)
         teams = teams[teams['situation'] == 'all']
+        
+        # Load main game results (seasons 2013-2024 + 2025-26)
+        games = pd.read_csv(DATA_PATH)
+        games['season'] = games['season'].astype(int)
         
         # Fix team names
         games['home_team'] = games['home_team'].replace('PHX', 'ARI')
         games['away_team'] = games['away_team'].replace('PHX', 'ARI')
         
-        # Build features
+        # Build features for main games
         features = []
         games['season_year'] = games['season'].astype(str).str[:4].astype(int)
         
@@ -76,6 +76,7 @@ def load_data():
             })
         
         df = pd.DataFrame(features)
+        print(f"Loaded {len(df)} games (2013-2024 + 2025-26)")
         
         # Load 2024-25 data if available
         if DATA_2024_25_PATH.exists():
@@ -83,19 +84,14 @@ def load_data():
             df_2024_25['season'] = 20242025
             df_2024_25['home_team'] = df_2024_25['home_team'].replace('UTA', 'ARI')
             df_2024_25['away_team'] = df_2024_25['away_team'].replace('UTA', 'ARI')
-            print(f"Loaded {len(df)} games + {len(df_2024_25)} 2024-25 games")
-        else:
-            print(f"Loaded {len(df)} games")
+            print(f"Loaded {len(df_2024_25)} 2024-25 games")
         
         # Load 2025-26 data if available
         if DATA_2025_26_PATH.exists():
             df_2025_26 = pd.read_csv(DATA_2025_26_PATH)
             df_2025_26['season'] = 20252026
-            # UTA -> ARI for games, but stats use UTA so map back
-            df_2025_26['home_team_orig'] = df_2025_26['home_team']
-            df_2025_26['away_team_orig'] = df_2025_26['away_team']
-            df_2025_26['home_team'] = df_2025_26['home_team'].replace('ARI', 'UTA')
-            df_2025_26['away_team'] = df_2025_26['away_team'].replace('ARI', 'UTA')
+            df_2025_26['home_team'] = df_2025_26['home_team'].replace('UTA', 'ARI')
+            df_2025_26['away_team'] = df_2025_26['away_team'].replace('UTA', 'ARI')
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
     except Exception as e:
@@ -157,8 +153,17 @@ async def simulate(request: SimulationRequest):
     train_seasons = [year_to_season_code(y) for y in range(request.train_season_start, request.train_season_end + 1)]
     test_seasons = [year_to_season_code(y) for y in range(request.test_season_start, request.test_season_end + 1)]
     
+    # Combine all available data for training
+    all_data = [df]
+    if df_2024_25 is not None:
+        all_data.append(df_2024_25)
+    if df_2025_26 is not None:
+        all_data.append(df_2025_26)
+    
+    combined_df = pd.concat(all_data, ignore_index=True)
+    
     # Filter training data
-    train_df = df[df['season'].isin(train_seasons)]
+    train_df = combined_df[combined_df['season'].isin(train_seasons)]
     
     # Handle test data - check if 2024-25 or 2025-26 is requested
     if 20242025 in test_seasons and df_2024_25 is not None:
@@ -166,7 +171,7 @@ async def simulate(request: SimulationRequest):
     elif 20252026 in test_seasons and df_2025_26 is not None:
         test_df = df_2025_26.copy()
     else:
-        test_df = df[df['season'].isin(test_seasons)].copy()
+        test_df = combined_df[combined_df['season'].isin(test_seasons)].copy()
     
     if len(train_df) == 0:
         raise HTTPException(status_code=400, detail="Brak danych treningowych")
