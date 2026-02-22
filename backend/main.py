@@ -610,8 +610,8 @@ async def list_models():
     available = []
     for f in MODELS_PATH.glob("model_*.pkl"):
         available.append(f.stem.replace("model_", ""))
-    if not available:
-        available = ["v1"]
+    # Always return both v1 and v2 as options
+    available = ["v1", "v2"]
     return {"models": available}
 
 
