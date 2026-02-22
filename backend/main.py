@@ -360,8 +360,8 @@ async def _build_predictions(all_games, threshold):
             'away_xg_pct': float(away_s['xGoalsPercentage']),
         })
     
-    # Train model
-    train_seasons = [20232024, 20242025]
+    # Train model - same as backtest: 2013-2014 to 2024-2025
+    train_seasons = [20132014, 20142015, 20152016, 20162017, 20172018, 20182019, 20192020, 20202021, 20212022, 20222023, 20232024, 20242025]
     train_df = combined_df_ref[combined_df_ref['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
