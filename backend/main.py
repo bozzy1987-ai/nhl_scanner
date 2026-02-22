@@ -273,11 +273,12 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     """Get upcoming games and predictions"""
     import requests
     
+    global combined_df
+    
     if df is None:
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     # Build combined_df if not exists
-    global combined_df
     if combined_df is None:
         all_data = [df]
         if df_2024_25 is not None:
@@ -288,6 +289,9 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     
     # Get team stats for 2024-25 (for predicting 2025-26)
     teams_2024_25 = teams[teams['season'] == 2024].copy()
+    
+    if len(teams_2024_25) == 0:
+        raise HTTPException(status_code=500, detail="No team stats for 2024")
     
     # Fetch upcoming games from NHL API
     from datetime import datetime, timedelta
