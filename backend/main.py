@@ -276,145 +276,150 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     
     global combined_df
     
-    if df is None:
-        raise HTTPException(status_code=500, detail="Data not loaded")
-    
-    # Build combined_df if not exists
-    if combined_df is None:
-        all_data = [df]
-        if df_2024_25 is not None:
-            all_data.append(df_2024_25)
-        if df_2025_26 is not None:
-            all_data.append(df_2025_26)
-        combined_df = pd.concat(all_data, ignore_index=True)
-    
-    # Get team stats for 2024-25 (for predicting 2025-26)
-    teams_2024_25 = teams[teams['season'] == 2024].copy()
-    
-    if len(teams_2024_25) == 0:
-        raise HTTPException(status_code=500, detail="No team stats for 2024")
-    
-    # Fetch upcoming games from NHL API
-    all_games = []
-    for day_offset in range(days_ahead):
-        date = datetime.now() + timedelta(days=day_offset)
-        date_str = date.strftime('%Y-%m-%d')
+    try:
+        if df is None:
+            raise HTTPException(status_code=500, detail="Data not loaded")
         
-        try:
-            resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get('gameWeek'):
-                    for day in data['gameWeek']:
-                        for game in day.get('games', []):
-                            home = game.get('homeTeam', {}).get('abbrev', '')
-                            away = game.get('awayTeam', {}).get('abbrev', '')
-                            if home and away:
-                                all_games.append({
-                                    'date': date_str,
-                                    'home_team': home,
-                                    'away_team': away,
-                                    'game_id': game.get('id')
-                                })
-        except Exception as e:
-            print(f"Error fetching {date_str}: {e}")
-    
-    if not all_games:
-        return {"games": [], "message": "No upcoming games found"}
-    
-    # Map team names
-    team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
-    
-    # Build features for each game
-    predictions = []
-    for game in all_games:
-        home = game['home_team']
-        away = game['away_team']
+        # Build combined_df if not exists
+        if combined_df is None:
+            all_data = [df]
+            if df_2024_25 is not None:
+                all_data.append(df_2024_25)
+            if df_2025_26 is not None:
+                all_data.append(df_2025_26)
+            combined_df = pd.concat(all_data, ignore_index=True)
         
-        # Apply team name mapping
-        homeMapped = team_map.get(home, home)
-        awayMapped = team_map.get(away, away)
+        # Get team stats for 2024-25 (for predicting 2025-26)
+        teams_2024_25 = teams[teams['season'] == 2024].copy()
         
-        home_stats = teams_2024_25[teams_2024_25['team'] == homeMapped]
-        away_stats = teams_2024_25[teams_2024_25['team'] == awayMapped]
+        if len(teams_2024_25) == 0:
+            raise HTTPException(status_code=500, detail="No team stats for 2024")
         
-        if len(home_stats) == 0 or len(away_stats) == 0:
-            continue
+        # Fetch upcoming games from NHL API
+        all_games = []
+        for day_offset in range(days_ahead):
+            date = datetime.now() + timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek'):
+                        for day in data['gameWeek']:
+                            for game in day.get('games', []):
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                if home and away:
+                                    all_games.append({
+                                        'date': date_str,
+                                        'home_team': home,
+                                        'away_team': away,
+                                        'game_id': game.get('id')
+                                    })
+            except Exception as e:
+                print(f"Error fetching {date_str}: {e}")
         
-        home_s = home_stats.iloc[0]
-        away_s = away_stats.iloc[0]
+        if not all_games:
+            return {"games": [], "message": "No upcoming games found"}
         
-        features = [[
-            home_s['xGoalsPercentage'],
-            home_s['corsiPercentage'],
-            away_s['xGoalsPercentage'],
-            away_s['corsiPercentage'],
-            home_s['goalsFor'],
-            home_s['goalsAgainst'],
-            away_s['goalsFor'],
-            away_s['goalsAgainst']
-        ]]
+        # Map team names
+        team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
         
-        predictions.append({
-            'date': game['date'],
-            'home_team': home,
-            'away_team': away,
-            'home_xg_pct': home_s['xGoalsPercentage'],
-            'away_xg_pct': away_s['xGoalsPercentage'],
-            'home_cf_pct': home_s['corsiPercentage'],
-            'away_cf_pct': away_s['corsiPercentage'],
-            'features': features
-        })
-    
-    # Train model on recent seasons
-    train_seasons = [20232024, 20242025]
-    train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
-    train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
-    
-    X_train = train_df[feature_cols]
-    y_train = train_df['home_3_plus']
-    
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=5,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        eval_metric='logloss'
-    )
-    model.fit(X_train, y_train)
-    
-    # Predict
-    threshold_val = threshold / 100
-    results = []
-    bet_count = 0
-    
-    for pred in predictions:
-        prob = model.predict_proba(pred['features'])[0][1]
-        pred['predicted_prob'] = round(prob * 100, 1)
-        pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
+        # Build features for each game
+        predictions = []
+        for game in all_games:
+            home = game['home_team']
+            away = game['away_team']
+            
+            # Apply team name mapping
+            homeMapped = team_map.get(home, home)
+            awayMapped = team_map.get(away, away)
+            
+            home_stats = teams_2024_25[teams_2024_25['team'] == homeMapped]
+            away_stats = teams_2024_25[teams_2024_25['team'] == awayMapped]
+            
+            if len(home_stats) == 0 or len(away_stats) == 0:
+                continue
+            
+            home_s = home_stats.iloc[0]
+            away_s = away_stats.iloc[0]
+            
+            features = [[
+                home_s['xGoalsPercentage'],
+                home_s['corsiPercentage'],
+                away_s['xGoalsPercentage'],
+                away_s['corsiPercentage'],
+                home_s['goalsFor'],
+                home_s['goalsAgainst'],
+                away_s['goalsFor'],
+                away_s['goalsAgainst']
+            ]]
+            
+            predictions.append({
+                'date': game['date'],
+                'home_team': home,
+                'away_team': away,
+                'home_xg_pct': home_s['xGoalsPercentage'],
+                'away_xg_pct': away_s['xGoalsPercentage'],
+                'home_cf_pct': home_s['corsiPercentage'],
+                'away_cf_pct': away_s['corsiPercentage'],
+                'features': features
+            })
         
-        if prob >= threshold_val:
-            bet_count += 1
+        # Train model on recent seasons
+        train_seasons = [20232024, 20242025]
+        train_df = combined_df[combined_df['season'].isin(train_seasons)].copy()
+        train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
         
-        results.append({
-            'date': pred['date'],
-            'home_team': pred['home_team'],
-            'away_team': pred['away_team'],
-            'home_xg_pct': pred['home_xg_pct'],
-            'away_xg_pct': pred['away_xg_pct'],
-            'predicted_prob': pred['predicted_prob'],
-            'bet_recommendation': pred['bet_recommendation']
-        })
-    
-    return {
-        "games": results[:20],
-        "total_games": len(results),
-        "bet_count": bet_count,
-        "threshold": threshold,
-        "message": f"Found {len(results)} games, {bet_count} qualify for betting"
-    }
+        X_train = train_df[feature_cols]
+        y_train = train_df['home_3_plus']
+        
+        model = xgb.XGBClassifier(
+            n_estimators=100,
+            max_depth=5,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            eval_metric='logloss'
+        )
+        model.fit(X_train, y_train)
+        
+        # Predict
+        threshold_val = threshold / 100
+        results = []
+        bet_count = 0
+        
+        for pred in predictions:
+            prob = model.predict_proba(pred['features'])[0][1]
+            pred['predicted_prob'] = round(prob * 100, 1)
+            pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
+            
+            if prob >= threshold_val:
+                bet_count += 1
+            
+            results.append({
+                'date': pred['date'],
+                'home_team': pred['home_team'],
+                'away_team': pred['away_team'],
+                'home_xg_pct': pred['home_xg_pct'],
+                'away_xg_pct': pred['away_xg_pct'],
+                'predicted_prob': pred['predicted_prob'],
+                'bet_recommendation': pred['bet_recommendation']
+            })
+        
+        return {
+            "games": results[:20],
+            "total_games": len(results),
+            "bet_count": bet_count,
+            "threshold": threshold,
+            "message": f"Found {len(results)} games, {bet_count} qualify for betting"
+        }
+    except Exception as e:
+        import traceback
+        print(f"Schedule error: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
