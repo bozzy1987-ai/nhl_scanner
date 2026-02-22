@@ -423,8 +423,9 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
         }
     except Exception as e:
         import traceback
-        print(f"Schedule error: {traceback.format_exc()}")
-        return {"error": str(e), "games": []}
+        error_msg = traceback.format_exc()
+        print(f"Schedule error: {error_msg}")
+        return {"error": str(e)[:200], "games": [], "trace": error_msg[:500]}
 
 if __name__ == "__main__":
     import uvicorn
