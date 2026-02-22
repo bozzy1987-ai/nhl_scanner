@@ -272,6 +272,7 @@ async def simulate(request: SimulationRequest):
 async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
     """Get upcoming games and predictions"""
     import requests
+    from datetime import datetime, timedelta
     
     global combined_df
     
@@ -294,8 +295,6 @@ async def get_schedule(days_ahead: int = 7, threshold: float = 80.0):
         raise HTTPException(status_code=500, detail="No team stats for 2024")
     
     # Fetch upcoming games from NHL API
-    from datetime import datetime, timedelta
-    
     all_games = []
     for day_offset in range(days_ahead):
         date = datetime.now() + timedelta(days=day_offset)
