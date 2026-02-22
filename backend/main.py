@@ -271,55 +271,7 @@ async def simulate(request: SimulationRequest):
 @app.get("/schedule")
 async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
     """Get upcoming games and predictions"""
-    import requests
-    from datetime import datetime, timedelta
-    
-    global combined_df
-    
-    try:
-        # Set shorter timeout for NHL API
-        session = requests.Session()
-        session.headers.update({'User-Agent': 'NHL-Scanner/1.0'})
-        
-        # Simple test first - just return schedule without predictions
-        all_games = []
-        now = datetime.now()
-        
-        for day_offset in range(days_ahead):
-            date = now + timedelta(days=day_offset)
-            date_str = date.strftime('%Y-%m-%d')
-            
-            try:
-                resp = session.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=5)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get('gameWeek') and len(data.get('gameWeek', [])) > 0:
-                        for day in data['gameWeek']:
-                            for game in day.get('games', []):
-                                home = game.get('homeTeam', {}).get('abbrev', '')
-                                away = game.get('awayTeam', {}).get('abbrev', '')
-                                if home and away:
-                                    all_games.append({
-                                        'date': date_str,
-                                        'home_team': home,
-                                        'away_team': away,
-                                    })
-            except Exception as e:
-                print(f"Error fetching {date_str}: {e}")
-        
-        if not all_games:
-            return {"games": [], "message": f"No upcoming games in next {days_ahead} days"}
-        
-        # Return raw schedule if data not loaded
-        if df is None:
-            return {"games": all_games[:20], "message": f"Found {len(all_games)} games"}
-        
-        # Build predictions
-        return await _build_predictions(all_games, threshold, teams, combined_df, feature_cols, xgb)
-        
-    except Exception as e:
-        import traceback
-        return {"error": str(e)[:200], "games": [], "trace": traceback.format_exc()[:300]}
+    return {"message": "Schedule endpoint works", "games": []}
 
 
 async def _build_predictions(all_games, threshold, teams, combined_df_input, feature_cols, xgb):
