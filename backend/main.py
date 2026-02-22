@@ -13,20 +13,28 @@ from pathlib import Path
 
 MODEL_PATH = Path(__file__).parent / "model" / "hockey_model.pkl"
 DATA_PATH = Path(__file__).parent / "data" / "nhl_game_results.csv"
+DATA_2024_25_PATH = Path(__file__).parent / "data" / "test_predictions_2024_25.csv"
 
 model = None
 df = None
+df_2024_25 = None
 feature_cols = ['home_xg_pct', 'home_cf_pct', 'away_xg_pct', 'away_cf_pct',
                 'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against']
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model, df
+    global model, df, df_2024_25
     try:
         model = joblib.load(MODEL_PATH)
         df = pd.read_csv(DATA_PATH)
-        df['season'] = df['season'].astype(str)
-        print(f"Loaded model and {len(df)} games")
+        df['season'] = df['season'].astype(int)
+        
+        # Load 2024-25 data
+        if DATA_2024_25_PATH.exists():
+            df_2024_25 = pd.read_csv(DATA_2024_25_PATH)
+            df_2024_25['season'] = 20242025
+        
+        print(f"Loaded model and {len(df)} games + {len(df_2024_25) if df_2024_25 is not None else 0} 2024-25 games")
     except Exception as e:
         print(f"Error loading: {e}")
     yield
@@ -59,7 +67,13 @@ async def get_seasons():
         raise HTTPException(status_code=500, detail="Data not loaded")
     
     seasons = sorted(df['season'].unique())
-    return {"seasons": [int(str(s)[:4]) for s in seasons]}
+    result = [int(str(s)[:4]) for s in seasons]
+    
+    # Add 2024 for 2024-25
+    if df_2024_25 is not None:
+        result.append(2024)
+    
+    return {"seasons": sorted(set(result))}
 
 @app.post("/simulate")
 async def simulate(request: SimulationRequest):
@@ -68,9 +82,13 @@ async def simulate(request: SimulationRequest):
     
     # Get test seasons
     test_years = list(range(request.test_season_start, request.test_season_end + 1))
-    test_seasons = [str(y) + str(y+1) for y in test_years]
+    test_seasons = [y * 10000 + (y + 1) % 10000 for y in test_years]
     
-    test_df = df[df['season'].isin(test_seasons)].copy()
+    # Check if 2024-25 is requested
+    if 20242025 in test_seasons and df_2024_25 is not None:
+        test_df = df_2024_25.copy()
+    else:
+        test_df = df[df['season'].isin(test_seasons)].copy()
     
     if len(test_df) == 0:
         raise HTTPException(status_code=400, detail="Brak danych dla wybranych sezonów")
