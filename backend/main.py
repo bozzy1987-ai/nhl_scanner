@@ -407,6 +407,16 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
             except:
                 pass
         
+        # Remove duplicates based on date and teams
+        seen = set()
+        unique_games = []
+        for game in all_games:
+            key = (game['date'], game['home_team'], game['away_team'])
+            if key not in seen:
+                seen.add(key)
+                unique_games.append(game)
+        all_games = unique_games
+        
         if not all_games:
             return {"games": [], "message": "No upcoming games found"}
         
