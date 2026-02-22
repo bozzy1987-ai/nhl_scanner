@@ -95,6 +95,18 @@ def load_data():
             df_2025_26['away_team'] = df_2025_26['away_team'].replace('UTA', 'ARI')
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
+        # Load new games if exists (auto-updated)
+        NEW_GAMES_PATH = Path(__file__).parent / "data" / "new_games_2025_26.csv"
+        if NEW_GAMES_PATH.exists():
+            df_new = pd.read_csv(NEW_GAMES_PATH)
+            df_new['season'] = 20252026
+            if df_2025_26 is None:
+                df_2025_26 = df_new
+            else:
+                df_2025_26 = pd.concat([df_2025_26, df_new], ignore_index=True)
+                df_2025_26 = df_2025_26.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
+            print(f"Loaded {len(df_new)} new games")
+        
         # Create combined_df for training
         all_data = [df]
         if df_2024_25 is not None:
@@ -356,6 +368,14 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0):
                 # Remove duplicates
                 combined_df = combined_df.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
                 print(f"Added {len(new_games_df)} new games to training data. Total: {len(combined_df)}")
+                
+                # Save new games to separate file for persistence
+                try:
+                    new_file = Path(__file__).parent / "data" / "new_games_2025_26.csv"
+                    new_games_df.to_csv(new_file, mode='a', header=not new_file.exists(), index=False)
+                    print(f"Saved {len(new_games_df)} new games to {new_file}")
+                except Exception as save_err:
+                    print(f"Save error: {save_err}")
     except Exception as e:
         print(f"Auto-update error: {e}")
     
