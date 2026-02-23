@@ -66,6 +66,31 @@ def load_data():
             home_s = home_stats.iloc[0]
             away_s = away_stats.iloc[0]
             
+            # For v2: fallback to 2023 data if current season has NaN
+            if season_year == 2024:
+                home_2023 = teams[(teams['team'] == home) & (teams['season'] == 2023)]
+                away_2023 = teams[(teams['team'] == away) & (teams['season'] == 2023)]
+                if len(home_2023) > 0:
+                    home_2023 = home_2023.iloc[0]
+                    if pd.isna(home_s.get('fenwickPercentage')) or home_s.get('fenwickPercentage') == 0:
+                        home_s['fenwickPercentage'] = home_2023.get('fenwickPercentage', 50)
+                    if pd.isna(home_s.get('shotsOnGoalFor')) or home_s.get('shotsOnGoalFor') == 0:
+                        home_s['shotsOnGoalFor'] = home_2023.get('shotsOnGoalFor', 0)
+                    if pd.isna(home_s.get('shotsOnGoalAgainst')) or home_s.get('shotsOnGoalAgainst') == 0:
+                        home_s['shotsOnGoalAgainst'] = home_2023.get('shotsOnGoalAgainst', 0)
+                    if pd.isna(home_s.get('highDangerShotsFor')) or home_s.get('highDangerShotsFor') == 0:
+                        home_s['highDangerShotsFor'] = home_2023.get('highDangerShotsFor', 0)
+                if len(away_2023) > 0:
+                    away_2023 = away_2023.iloc[0]
+                    if pd.isna(away_s.get('fenwickPercentage')) or away_s.get('fenwickPercentage') == 0:
+                        away_s['fenwickPercentage'] = away_2023.get('fenwickPercentage', 50)
+                    if pd.isna(away_s.get('shotsOnGoalFor')) or away_s.get('shotsOnGoalFor') == 0:
+                        away_s['shotsOnGoalFor'] = away_2023.get('shotsOnGoalFor', 0)
+                    if pd.isna(away_s.get('shotsOnGoalAgainst')) or away_s.get('shotsOnGoalAgainst') == 0:
+                        away_s['shotsOnGoalAgainst'] = away_2023.get('shotsOnGoalAgainst', 0)
+                    if pd.isna(away_s.get('highDangerShotsFor')) or away_s.get('highDangerShotsFor') == 0:
+                        away_s['highDangerShotsFor'] = away_2023.get('highDangerShotsFor', 0)
+            
             features.append({
                 'season': row['season'],
                 'date': row['date'],
@@ -555,6 +580,33 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
         
         home_s = teams_2024_25[teams_2024_25['team'] == homeMapped].iloc[0]
         away_s = teams_2024_25[teams_2024_25['team'] == awayMapped].iloc[0]
+        
+        # For v2: fallback to 2023 data if 2024 has NaN
+        if use_v2:
+            teams_2023 = teams[teams['season'] == 2023]
+            if len(teams_2023) > 0:
+                home_2023 = teams_2023[teams_2023['team'] == homeMapped]
+                away_2023 = teams_2023[teams_2023['team'] == awayMapped]
+                if len(home_2023) > 0:
+                    home_2023 = home_2023.iloc[0]
+                    if pd.isna(home_s.get('fenwickPercentage')) or home_s.get('fenwickPercentage') == 0:
+                        home_s['fenwickPercentage'] = home_2023.get('fenwickPercentage', 50)
+                    if pd.isna(home_s.get('shotsOnGoalFor')) or home_s.get('shotsOnGoalFor') == 0:
+                        home_s['shotsOnGoalFor'] = home_2023.get('shotsOnGoalFor', 0)
+                    if pd.isna(home_s.get('shotsOnGoalAgainst')) or home_s.get('shotsOnGoalAgainst') == 0:
+                        home_s['shotsOnGoalAgainst'] = home_2023.get('shotsOnGoalAgainst', 0)
+                    if pd.isna(home_s.get('highDangerShotsFor')) or home_s.get('highDangerShotsFor') == 0:
+                        home_s['highDangerShotsFor'] = home_2023.get('highDangerShotsFor', 0)
+                if len(away_2023) > 0:
+                    away_2023 = away_2023.iloc[0]
+                    if pd.isna(away_s.get('fenwickPercentage')) or away_s.get('fenwickPercentage') == 0:
+                        away_s['fenwickPercentage'] = away_2023.get('fenwickPercentage', 50)
+                    if pd.isna(away_s.get('shotsOnGoalFor')) or away_s.get('shotsOnGoalFor') == 0:
+                        away_s['shotsOnGoalFor'] = away_2023.get('shotsOnGoalFor', 0)
+                    if pd.isna(away_s.get('shotsOnGoalAgainst')) or away_s.get('shotsOnGoalAgainst') == 0:
+                        away_s['shotsOnGoalAgainst'] = away_2023.get('shotsOnGoalAgainst', 0)
+                    if pd.isna(away_s.get('highDangerShotsFor')) or away_s.get('highDangerShotsFor') == 0:
+                        away_s['highDangerShotsFor'] = away_2023.get('highDangerShotsFor', 0)
         
         if use_v2:
             features = [[
