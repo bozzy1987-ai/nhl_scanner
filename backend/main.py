@@ -319,7 +319,7 @@ async def simulate(request: SimulationRequest):
     qualifying_bets['won'] = (qualifying_bets['home_3_plus'] == 1).astype(int)
     qualifying_bets['profit'] = np.where(
         qualifying_bets['won'] == 1,
-        request.bet_amount * 0.6,
+        request.bet_amount * 0.5,
         -request.bet_amount
     )
     
