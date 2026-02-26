@@ -662,6 +662,15 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
                     if pd.isna(away_s.get('highDangerShotsFor')) or away_s.get('highDangerShotsFor') == 0:
                         away_s['highDangerShotsFor'] = away_2023.get('highDangerShotsFor', 0)
         
+        # Build V1 features
+        features_v1 = [[
+            home_s['xGoalsPercentage'], home_s['corsiPercentage'],
+            away_s['xGoalsPercentage'], away_s['corsiPercentage'],
+            home_s['goalsFor'], home_s['goalsAgainst'],
+            away_s['goalsFor'], away_s['goalsAgainst']
+        ]]
+        
+        # Build V2 features if needed
         if use_v2:
             features = [[
                 home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
@@ -673,15 +682,10 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
                 home_s.get('highDangerShotsFor', 0), away_s.get('highDangerShotsFor', 0)
             ]]
         else:
-            features = [[
-                home_s['xGoalsPercentage'], home_s['corsiPercentage'],
-                away_s['xGoalsPercentage'], away_s['corsiPercentage'],
-                home_s['goalsFor'], home_s['goalsAgainst'],
-                away_s['goalsFor'], away_s['goalsAgainst']
-            ]]
+            features = features_v1
         
-        # Get V1 prediction
-        prob_v1 = float(model_v1.predict_proba(features)[0][1])
+        # Get V1 prediction (always use V1 features)
+        prob_v1 = float(model_v1.predict_proba(features_v1)[0][1])
         
         # Get V2 prediction if needed
         prob_v2 = prob_v1
