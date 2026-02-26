@@ -526,6 +526,9 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     if len(teams_2024_25) == 0:
         return {"games": all_games[:50], "message": "No team stats"}
     
+    # Check if v1_v2 mode (both models must agree)
+    use_both = model_version == "v1_v2"
+    
     # Build features
     predictions = []
     for game in all_games:
@@ -554,25 +557,39 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     train_df = combined_df_ref[combined_df_ref['season'].isin(train_seasons)].copy()
     train_df['home_3_plus'] = (train_df['home_gf'] >= 3).astype(int)
     
-    features = feature_cols_v2 if model_version.startswith("v2") else feature_cols
+    # Always train both models for v1_v2 mode
+    if use_both:
+        features = feature_cols  # V1 features
+    else:
+        features = feature_cols_v2 if model_version.startswith("v2") else feature_cols
     
     X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
-    # Always train fresh for schedule - don't use saved model
-    model = xgb.XGBClassifier(
+    # Train V1 model
+    model_v1 = xgb.XGBClassifier(
         n_estimators=100, max_depth=5, learning_rate=0.1,
         subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
     )
-    model.fit(X_train, y_train)
+    model_v1.fit(X_train, y_train)
+    
+    # Train V2 model if needed
+    model_v2 = None
+    if use_both or model_version.startswith("v2"):
+        features_v2 = feature_cols_v2
+        X_train_v2 = train_df[features_v2]
+        model_v2 = xgb.XGBClassifier(
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+        )
+        model_v2.fit(X_train_v2, y_train)
     
     # Predict
     threshold_val = threshold / 100
     results = []
     bet_count = 0
     
-    # Use v2 features if model_version is v2
-    use_v2 = model_version.startswith("v2")
+    use_v2 = model_version.startswith("v2") or use_both
     
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
@@ -626,21 +643,40 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
                 away_s['goalsFor'], away_s['goalsAgainst']
             ]]
         
-        prob = float(model.predict_proba(features)[0][1])
-        pred['predicted_prob'] = round(prob * 100, 1)
-        pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
+        # Get V1 prediction
+        prob_v1 = float(model_v1.predict_proba(features)[0][1])
         
-        if prob >= threshold_val:
-            bet_count += 1
+        # Get V2 prediction if needed
+        prob_v2 = prob_v1
+        if model_v2 is not None:
+            prob_v2 = float(model_v2.predict_proba(features)[0][1])
+        
+        # For v1_v2 mode: use V1 threshold 75% and V2 threshold 70%
+        if use_both:
+            pred['prob_v1'] = round(prob_v1 * 100, 1)
+            pred['prob_v2'] = round(prob_v2 * 100, 1)
+            pred['predicted_prob'] = round(min(prob_v1, prob_v2) * 100, 1)
+            # Only bet if BOTH agree (V1 >= 75% AND V2 >= 70%)
+            bet = prob_v1 >= 0.75 and prob_v2 >= 0.70
+            pred['bet_recommendation'] = 'BET' if bet else '-'
+            if bet:
+                bet_count += 1
+        else:
+            prob = prob_v2 if model_v2 else prob_v1
+            pred['predicted_prob'] = round(prob * 100, 1)
+            pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
+            if prob >= threshold_val:
+                bet_count += 1
         
         results.append(pred)
     
+    mode_msg = "V1+V2 (both >= 75%/70%)" if use_both else f"Model: {model_version}"
     return {
         "games": results[:200],
         "total_games": len(results),
         "bet_count": bet_count,
         "threshold": threshold,
-        "message": f"Found {len(results)} games, {bet_count} qualify for betting"
+        "message": f"Found {len(results)} games, {bet_count} qualify for betting. {mode_msg}"
     }
 
 
@@ -662,8 +698,8 @@ async def list_models():
     available = []
     for f in MODELS_PATH.glob("model_*.pkl"):
         available.append(f.stem.replace("model_", ""))
-    # Always return both v1 and v2 as options
-    available = ["v1", "v2"]
+    # Always return v1, v2 and v1_v2 as options
+    available = ["v1", "v2", "v1_v2"]
     return {"models": available}
 
 
