@@ -245,14 +245,20 @@ function App() {
                 {models.map(m => <option key={m} value={m}>{m.toUpperCase()}</option>)}
               </select>
               
-              <label>Próg confidence: {scheduleThreshold}%</label>
-              <input 
-                type="range" 
-                min="50" 
-                max="95" 
-                value={scheduleThreshold} 
-                onChange={(e) => setScheduleThreshold(Number(e.target.value))}
-              />
+              {modelVersion === 'v1_v2' ? (
+                <span style={{color: '#888', fontSize: '14px'}}>Próg stały: V1≥75%, V2≥70%</span>
+              ) : (
+                <>
+                  <label>Próg confidence: {scheduleThreshold}%</label>
+                  <input 
+                    type="range" 
+                    min="50" 
+                    max="95" 
+                    value={scheduleThreshold} 
+                    onChange={(e) => setScheduleThreshold(Number(e.target.value))}
+                  />
+                </>
+              )}
               <button onClick={loadSchedule} disabled={scheduleLoading}>
                 {scheduleLoading ? 'Ładowanie...' : 'Odśwież'}
               </button>
