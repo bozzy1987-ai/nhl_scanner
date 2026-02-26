@@ -458,6 +458,33 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         all_games = []
         now = datetime.now()
         
+        # Get teams that played in last 2 days (B2B)
+        b2b_teams = set()
+        for day_offset in range(1, 3):  # last 2 days
+            date = now - timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek'):
+                        for day in data['gameWeek']:
+                            day_date = day.get('date', '')
+                            if day_date != date_str:
+                                continue
+                            for game in day.get('games', []):
+                                if game.get('gameState') == 'OFF':
+                                    home = game.get('homeTeam', {}).get('abbrev', '')
+                                    away = game.get('awayTeam', {}).get('abbrev', '')
+                                    if home:
+                                        b2b_teams.add(home)
+                                    if away:
+                                        b2b_teams.add(away)
+            except:
+                pass
+        
+        # Fetch upcoming games
         for day_offset in range(days_ahead):
             date = now + timedelta(days=day_offset)
             date_str = date.strftime('%Y-%m-%d')
@@ -473,6 +500,9 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                                 home = game.get('homeTeam', {}).get('abbrev', '')
                                 away = game.get('awayTeam', {}).get('abbrev', '')
                                 if home and away:
+                                    # Skip B2B games
+                                    if home in b2b_teams or away in b2b_teams:
+                                        continue
                                     all_games.append({
                                         'date': game_date,
                                         'home_team': home,
