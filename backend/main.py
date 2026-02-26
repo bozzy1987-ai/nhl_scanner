@@ -458,9 +458,37 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         all_games = []
         now = datetime.now()
         
-        # Get teams that played in last 2 days (B2B)
+        # First, collect all upcoming games and find teams playing multiple games
+        upcoming_games_by_date = {}
+        teams_playing_today = set()
+        
+        for day_offset in range(days_ahead + 1):
+            date = now + timedelta(days=day_offset)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek'):
+                        for day in data['gameWeek']:
+                            game_date = day.get('date', date_str)
+                            if game_date not in upcoming_games_by_date:
+                                upcoming_games_by_date[game_date] = []
+                            for game in day.get('games', []):
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                if home and away:
+                                    upcoming_games_by_date[game_date].append((home, away))
+                                    if day_offset == 0:
+                                        teams_playing_today.add(home)
+                                        teams_playing_today.add(away)
+            except:
+                pass
+        
+        # Get teams that played in last 2 days (B2B from past)
         b2b_teams = set()
-        for day_offset in range(1, 3):  # last 2 days
+        for day_offset in range(1, 3):
             date = now - timedelta(days=day_offset)
             date_str = date.strftime('%Y-%m-%d')
             
@@ -484,7 +512,7 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
             except:
                 pass
         
-        # Fetch upcoming games
+        # Now fetch and filter games
         for day_offset in range(days_ahead):
             date = now + timedelta(days=day_offset)
             date_str = date.strftime('%Y-%m-%d')
@@ -500,9 +528,21 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                                 home = game.get('homeTeam', {}).get('abbrev', '')
                                 away = game.get('awayTeam', {}).get('abbrev', '')
                                 if home and away:
-                                    # Skip B2B games
-                                    if home in b2b_teams or away in b2b_teams:
+                                    # Skip B2B: team played yesterday OR is playing today (for tomorrow's games)
+                                    is_b2b = home in b2b_teams or away in b2b_teams
+                                    
+                                    # Also check if this is a consecutive game for the team
+                                    # (playing multiple days in a row)
+                                    if day_offset > 0:
+                                        prev_date = (date - timedelta(days=1)).strftime('%Y-%m-%d')
+                                        if prev_date in upcoming_games_by_date:
+                                            for h, a in upcoming_games_by_date[prev_date]:
+                                                if h == home or a == home or h == away or a == away:
+                                                    is_b2b = True
+                                    
+                                    if is_b2b:
                                         continue
+                                    
                                     all_games.append({
                                         'date': game_date,
                                         'home_team': home,
