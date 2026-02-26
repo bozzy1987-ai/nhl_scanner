@@ -461,33 +461,32 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         # Check if v1_v2 mode (apply B2B filter)
         apply_b2b_filter = (model_version == "v1_v2")
         
-        # Get teams that played in last 2 days (B2B from past) - only for v1_v2
+        # Get teams that played yesterday (B2B) - only for v1_v2
         b2b_teams = set()
         if apply_b2b_filter:
-            # Check yesterday and day before (not today - today's games are already scheduled)
-            for day_offset in range(1, 3):
-                date = now - timedelta(days=day_offset)
-                date_str = date.strftime('%Y-%m-%d')
-                
-                try:
-                    resp = requests.get(f"https://api-web.nhle.com/v1/schedule/{date_str}", timeout=10)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        if data.get('gameWeek'):
-                            for day in data['gameWeek']:
-                                day_date = day.get('date', '')
-                                if day_date != date_str:
-                                    continue
-                                for game in day.get('games', []):
-                                    if game.get('gameState') == 'OFF':
-                                        home = game.get('homeTeam', {}).get('abbrev', '')
-                                        away = game.get('awayTeam', {}).get('abbrev', '')
-                                        if home:
-                                            b2b_teams.add(home)
-                                        if away:
-                                            b2b_teams.add(away)
-                except:
-                    pass
+            # Check yesterday only (day_offset = 1)
+            date = now - timedelta(days=1)
+            date_str = date.strftime('%Y-%m-%d')
+            
+            try:
+                resp = requests.get(f'https://api-web.nhle.com/v1/schedule/{date_str}', timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('gameWeek'):
+                        for day in data['gameWeek']:
+                            day_date = day.get('date', '')
+                            if day_date != date_str:
+                                continue
+                            for game in day.get('games', []):
+                                if game.get('gameState') == 'OFF':
+                                    home = game.get('homeTeam', {}).get('abbrev', '')
+                                    away = game.get('awayTeam', {}).get('abbrev', '')
+                                    if home:
+                                        b2b_teams.add(home)
+                                    if away:
+                                        b2b_teams.add(away)
+            except:
+                pass
         
         # Fetch upcoming games
         for day_offset in range(days_ahead):
@@ -505,8 +504,8 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                                 home = game.get('homeTeam', {}).get('abbrev', '')
                                 away = game.get('awayTeam', {}).get('abbrev', '')
                                 if home and away:
-                                    # Apply B2B filter only for v1_v2 mode
-                                    if apply_b2b_filter:
+                                    # Apply B2B filter only for v1_v2 mode and only for TOMORROW+ (not today)
+                                    if apply_b2b_filter and day_offset > 0:
                                         if home in b2b_teams or away in b2b_teams:
                                             continue
                                     
