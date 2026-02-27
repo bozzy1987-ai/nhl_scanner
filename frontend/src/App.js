@@ -247,6 +247,8 @@ function App() {
               
               {modelVersion === 'v1_v2' ? (
                 <span style={{color: '#888', fontSize: '14px'}}>Próg stały: V1≥75%, V2≥70%</span>
+              ) : modelVersion === 'v1_v2_mid' ? (
+                <span style={{color: '#888', fontSize: '14px'}}>Próg stały: V1≥74%, V2≥68%</span>
               ) : modelVersion === 'v1_v2_low' ? (
                 <span style={{color: '#888', fontSize: '14px'}}>Próg stały: V1≥70%, V2≥65%</span>
               ) : (

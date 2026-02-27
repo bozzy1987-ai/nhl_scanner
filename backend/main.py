@@ -565,6 +565,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     # Check if v1_v2 mode (both models must agree)
     use_both = model_version == "v1_v2"
     use_both_low = model_version == "v1_v2_low"
+    use_both_mid = model_version == "v1_v2_mid"
     mode_msg = ""
     
     # Build features
@@ -613,7 +614,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     
     # Train V2 model if needed
     model_v2 = None
-    if use_both or use_both_low or model_version.startswith("v2"):
+    if use_both or use_both_mid or use_both_low or model_version.startswith("v2"):
         features_v2 = feature_cols_v2
         X_train_v2 = train_df[features_v2]
         model_v2 = xgb.XGBClassifier(
@@ -627,7 +628,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
     results = []
     bet_count = 0
     
-    use_v2 = model_version.startswith("v2") or use_both or use_both_low
+    use_v2 = model_version.startswith("v2") or use_both or use_both_mid or use_both_low
     
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
@@ -694,15 +695,19 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
             prob_v2 = float(model_v2.predict_proba(features)[0][1])
         
         # For v1_v2 mode: use V1 threshold 75% and V2 threshold 70%
-        if use_both or use_both_low:
+        if use_both or use_both_mid or use_both_low:
             pred['prob_v1'] = round(prob_v1 * 100, 1)
             pred['prob_v2'] = round(prob_v2 * 100, 1)
             pred['predicted_prob'] = round(min(prob_v1, prob_v2) * 100, 1)
             # V1_v2: V1 >= 75%, V2 >= 70%
+            # V1_v2_mid: V1 >= 74%, V2 >= 68%
             # V1_v2_low: V1 >= 70%, V2 >= 65%
             if use_both_low:
                 bet = prob_v1 >= 0.70 and prob_v2 >= 0.65
                 mode_msg = "V1+V2 (both >= 70%/65%)"
+            elif use_both_mid:
+                bet = prob_v1 >= 0.74 and prob_v2 >= 0.68
+                mode_msg = "V1+V2 (both >= 74%/68%)"
             else:
                 bet = prob_v1 >= 0.75 and prob_v2 >= 0.70
                 mode_msg = "V1+V2 (both >= 75%/70%)"
@@ -746,8 +751,8 @@ async def list_models():
     available = []
     for f in MODELS_PATH.glob("model_*.pkl"):
         available.append(f.stem.replace("model_", ""))
-    # Always return v1, v2, v1_v2 and v1_v2_low as options
-    available = ["v1", "v2", "v1_v2", "v1_v2_low"]
+    # Always return v1, v2, v1_v2, v1_v2_mid and v1_v2_low as options
+    available = ["v1", "v2", "v1_v2", "v1_v2_mid", "v1_v2_low"]
     return {"models": available}
 
 
