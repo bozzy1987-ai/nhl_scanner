@@ -703,7 +703,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
             # V1_v2_mid: V1 >= 74%, V2 >= 68%
             # V1_v2_low: V1 >= 70%, V2 >= 65%
             if use_both_low:
-                bet = prob_v1 >= 0.70 and prob_v2 >= 0.65 and pred['home_xg_pct'] >= 50
+                bet = prob_v1 >= 0.70 and prob_v2 >= 0.65 and pred['home_xg_pct'] >= 0.50
                 mode_msg = "V1+V2 (both >= 70%/65%, xG% home >= 50%)"
             elif use_both_mid:
                 bet = prob_v1 >= 0.74 and prob_v2 >= 0.68
