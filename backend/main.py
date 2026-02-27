@@ -723,7 +723,7 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
         
         results.append(pred)
     
-    mode_msg = mode_msg if (use_both or use_both_low) else f"Model: {model_version}"
+    mode_msg = mode_msg if (use_both or use_both_low or use_both_mid) else f"Model: {model_version}"
     return {
         "games": results[:200],
         "total_games": len(results),
