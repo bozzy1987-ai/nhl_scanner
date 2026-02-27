@@ -694,7 +694,6 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
             prob_v2 = float(model_v2.predict_proba(features)[0][1])
         
         # For v1_v2 mode: use V1 threshold 75% and V2 threshold 70%
-        use_both_low = (model_version == "v1_v2_low")
         if use_both or use_both_low:
             pred['prob_v1'] = round(prob_v1 * 100, 1)
             pred['prob_v2'] = round(prob_v2 * 100, 1)
