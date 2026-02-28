@@ -287,13 +287,16 @@ function App() {
                     </thead>
                     <tbody>
                       {scheduleData.games.map((game, idx) => (
-                        <tr key={idx} className={game.bet_recommendation === 'BET' ? 'bet-row' : ''}>
+                        <tr key={idx} className={game.bet_recommendation.startsWith('BET') ? 'bet-row' : ''}>
                           <td>{game.date}</td>
                           <td>{game.home_team} vs {game.away_team}</td>
                           <td>{Math.round(game.home_xg_pct * 100)}% - {Math.round(game.away_xg_pct * 100)}%</td>
                           <td>{game.predicted_prob}%</td>
-                          <td className={game.bet_recommendation === 'BET' ? 'bet' : ''}>
-                            {game.bet_recommendation === 'BET' ? '🎯 OBSTAW' : '-'}
+                          <td className={game.bet_recommendation.startsWith('BET') ? 'bet' : ''}>
+                            {game.bet_recommendation === 'BET' && '🎯 OBSTAW'}
+                            {game.bet_recommendation === 'BET!' && '🎯 OBSTAW! (gość B2B)'}
+                            {game.bet_recommendation === 'BET?' && '🎯 OBSTAW? (gosp. B2B)'}
+                            {game.bet_recommendation === '-' && '-'}
                           </td>
                         </tr>
                       ))}

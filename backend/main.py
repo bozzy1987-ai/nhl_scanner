@@ -238,9 +238,9 @@ async def simulate(request: SimulationRequest):
     if df is None:
         raise HTTPException(status_code=500, detail="Data not loaded")
     
-    # Convert years to season codes
+    # Convert years to season codes: 2025 = 2024-25 season = 20242025
     def year_to_season_code(year):
-        return year * 10000 + (year + 1) % 10000
+        return (year - 1) * 10000 + year
     
     train_seasons = [year_to_season_code(y) for y in range(request.train_season_start, request.train_season_end + 1)]
     test_seasons = [year_to_season_code(y) for y in range(request.test_season_start, request.test_season_end + 1)]
@@ -258,12 +258,14 @@ async def simulate(request: SimulationRequest):
     train_df = combined_df[combined_df['season'].isin(train_seasons)]
     
     # Handle test data - check if 2024-25 or 2025-26 is requested
+    # Only include games that have been played (home_gf > 0)
     if 20242025 in test_seasons and df_2024_25 is not None:
-        test_df = df_2024_25.copy()
+        test_df = df_2024_25[df_2024_25['home_gf'] > 0].copy()
     elif 20252026 in test_seasons and df_2025_26 is not None:
-        test_df = df_2025_26.copy()
+        test_df = df_2025_26[df_2025_26['home_gf'] > 0].copy()
     else:
         test_df = combined_df[combined_df['season'].isin(test_seasons)].copy()
+        test_df = test_df[test_df['home_gf'] > 0]
     
     if len(train_df) == 0:
         raise HTTPException(status_code=400, detail="Brak danych treningowych")
@@ -717,12 +719,19 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
                 bet = prob_v1 >= 0.75 and prob_v2 >= 0.70
                 mode_msg = "V1+V2 (both >= 75%/70%)"
             
-            # Check if B2B
-            is_b2b = pred['home_team'] in b2b_teams or pred['away_team'] in b2b_teams
-            pred['b2b'] = is_b2b
+            # Check if B2B - separate for home and away
+            home_b2b = pred['home_team'] in b2b_teams
+            away_b2b = pred['away_team'] in b2b_teams
+            pred['b2b_home'] = home_b2b
+            pred['b2b_away'] = away_b2b
             
             if bet:
-                pred['bet_recommendation'] = 'BET!' if is_b2b else 'BET'
+                if home_b2b:
+                    pred['bet_recommendation'] = 'BET?'  # home tired - risky
+                elif away_b2b:
+                    pred['bet_recommendation'] = 'BET!'  # away tired - good
+                else:
+                    pred['bet_recommendation'] = 'BET'
                 bet_count += 1
             else:
                 pred['bet_recommendation'] = '-'
@@ -730,12 +739,19 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             prob = prob_v2 if model_v2 else prob_v1
             pred['predicted_prob'] = round(prob * 100, 1)
             
-            # Check if B2B
-            is_b2b = pred['home_team'] in b2b_teams or pred['away_team'] in b2b_teams
-            pred['b2b'] = is_b2b
+            # Check if B2B - separate for home and away
+            home_b2b = pred['home_team'] in b2b_teams
+            away_b2b = pred['away_team'] in b2b_teams
+            pred['b2b_home'] = home_b2b
+            pred['b2b_away'] = away_b2b
             
             if prob >= threshold_val:
-                pred['bet_recommendation'] = 'BET!' if is_b2b else 'BET'
+                if home_b2b:
+                    pred['bet_recommendation'] = 'BET?'  # home tired - risky
+                elif away_b2b:
+                    pred['bet_recommendation'] = 'BET!'  # away tired - good
+                else:
+                    pred['bet_recommendation'] = 'BET'
                 bet_count += 1
             else:
                 pred['bet_recommendation'] = '-'
