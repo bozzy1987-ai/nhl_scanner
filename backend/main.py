@@ -164,17 +164,15 @@ def load_data():
             df_2025_26['away_high_danger'] = 0
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
-        # Load new games if exists (auto-updated)
+        # Load new games if exists (auto-updated) and merge into main file
         NEW_GAMES_PATH = Path(__file__).parent / "data" / "new_games_2025_26.csv"
-        if NEW_GAMES_PATH.exists():
+        if NEW_GAMES_PATH.exists() and df_2025_26 is not None:
             df_new = pd.read_csv(NEW_GAMES_PATH)
             df_new['season'] = 20252026
-            if df_2025_26 is None:
-                df_2025_26 = df_new
-            else:
-                df_2025_26 = pd.concat([df_2025_26, df_new], ignore_index=True)
-                df_2025_26 = df_2025_26.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
-            print(f"Loaded {len(df_new)} new games")
+            # Merge new games into main data
+            df_2025_26 = pd.concat([df_2025_26, df_new], ignore_index=True)
+            df_2025_26 = df_2025_26.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
+            print(f"Merged {len(df_new)} new games, total: {len(df_2025_26)}")
         
         # Create combined_df for training
         all_data = [df]
