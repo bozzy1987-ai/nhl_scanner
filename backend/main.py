@@ -724,16 +724,17 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             pred['predicted_prob'] = round(min(prob_v1, prob_v2) * 100, 1)
             # V1_v2: V1 >= 75%, V2 >= 70%
             # V1_v2_mid: V1 >= 74%, V2 >= 68%
-            # V1_v2_low: V1 >= 70%, V2 >= 65%
+            # V1_v2_low: V1 >= threshold%, V2 >= threshold%-5%
+            threshold_val = threshold / 100
             if use_both_low:
-                bet = prob_v1 >= 0.70 and prob_v2 >= 0.65 and pred['home_xg_pct'] >= 0.50
-                mode_msg = "V1+V2 (both >= 70%/65%, xG% home >= 50%)"
+                bet = prob_v1 >= threshold_val and prob_v2 >= (threshold_val - 0.05) and pred['home_xg_pct'] >= 0.50
+                mode_msg = f"V1+V2 (both >= {threshold}%/{threshold-5}%, xG% home >= 50%)"
             elif use_both_mid:
-                bet = prob_v1 >= 0.74 and prob_v2 >= 0.68
-                mode_msg = "V1+V2 (both >= 74%/68%)"
+                bet = prob_v1 >= threshold_val and prob_v2 >= (threshold_val - 0.06)
+                mode_msg = f"V1+V2 (both >= {threshold}%/{threshold-6}%)"
             else:
-                bet = prob_v1 >= 0.75 and prob_v2 >= 0.70
-                mode_msg = "V1+V2 (both >= 75%/70%)"
+                bet = prob_v1 >= threshold_val and prob_v2 >= (threshold_val - 0.05)
+                mode_msg = f"V1+V2 (both >= {threshold}%/{threshold-5}%)"
             
             # Check if B2B - separate for home and away
             home_b2b = pred['home_team'] in b2b_teams
