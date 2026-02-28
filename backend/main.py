@@ -238,9 +238,9 @@ async def simulate(request: SimulationRequest):
     if df is None:
         raise HTTPException(status_code=500, detail="Data not loaded")
     
-    # Convert years to season codes: 2025 = 2024-25 season = 20242025
+    # Convert years to season codes
     def year_to_season_code(year):
-        return (year - 1) * 10000 + year
+        return year * 10000 + (year + 1) % 10000
     
     train_seasons = [year_to_season_code(y) for y in range(request.train_season_start, request.train_season_end + 1)]
     test_seasons = [year_to_season_code(y) for y in range(request.test_season_start, request.test_season_end + 1)]
@@ -258,14 +258,12 @@ async def simulate(request: SimulationRequest):
     train_df = combined_df[combined_df['season'].isin(train_seasons)]
     
     # Handle test data - check if 2024-25 or 2025-26 is requested
-    # Only include games that have been played (home_gf > 0)
     if 20242025 in test_seasons and df_2024_25 is not None:
-        test_df = df_2024_25[df_2024_25['home_gf'] > 0].copy()
+        test_df = df_2024_25.copy()
     elif 20252026 in test_seasons and df_2025_26 is not None:
-        test_df = df_2025_26[df_2025_26['home_gf'] > 0].copy()
+        test_df = df_2025_26.copy()
     else:
         test_df = combined_df[combined_df['season'].isin(test_seasons)].copy()
-        test_df = test_df[test_df['home_gf'] > 0]
     
     if len(train_df) == 0:
         raise HTTPException(status_code=400, detail="Brak danych treningowych")
