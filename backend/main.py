@@ -164,16 +164,6 @@ def load_data():
             df_2025_26['away_high_danger'] = 0
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
-        # Load new games if exists (auto-updated) and merge into main file
-        NEW_GAMES_PATH = Path(__file__).parent / "data" / "new_games_2025_26.csv"
-        if NEW_GAMES_PATH.exists() and df_2025_26 is not None:
-            df_new = pd.read_csv(NEW_GAMES_PATH)
-            df_new['season'] = 20252026
-            # Merge new games into main data
-            df_2025_26 = pd.concat([df_2025_26, df_new], ignore_index=True)
-            df_2025_26 = df_2025_26.drop_duplicates(subset=['date', 'home_team', 'away_team'], keep='last')
-            print(f"Merged {len(df_new)} new games, total: {len(df_2025_26)}")
-        
         # Create combined_df for training
         all_data = [df]
         if df_2024_25 is not None:
@@ -275,13 +265,19 @@ async def simulate(request: SimulationRequest):
     test_df['home_3_plus'] = (test_df['home_gf'] >= 3).astype(int)
     
     # Select features based on model version
-    features = feature_cols_v2 if request.model_version.startswith("v2") else feature_cols
+    use_both = request.model_version == "v1_v2"
+    use_both_low = request.model_version == "v1_v2_low"
+    use_both_mid = request.model_version == "v1_v2_mid"
+    
+    # Features for V1 model
+    features = feature_cols
     
     # Train model dynamically - always train, don't use saved model for backtesting
     X_train = train_df[features]
     y_train = train_df['home_3_plus']
     
-    model = xgb.XGBClassifier(
+    # Train V1 model (always needed for v1_v2 modes)
+    model_v1 = xgb.XGBClassifier(
         n_estimators=100,
         max_depth=5,
         learning_rate=0.1,
@@ -290,11 +286,35 @@ async def simulate(request: SimulationRequest):
         random_state=42,
         eval_metric='logloss'
     )
-    model.fit(X_train, y_train)
+    model_v1.fit(X_train, y_train)
+    
+    # Train V2 model if needed
+    model_v2 = None
+    if request.model_version.startswith("v2") or use_both or use_both_mid or use_both_low:
+        features_v2 = feature_cols_v2
+        X_train_v2 = train_df[features_v2]
+        model_v2 = xgb.XGBClassifier(
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+        )
+        model_v2.fit(X_train_v2, y_train)
     
     # Predict
-    X_test = test_df[features]
-    probabilities = model.predict_proba(X_test)[:, 1]
+    X_test_v1 = test_df[feature_cols]
+    prob_v1 = model_v1.predict_proba(X_test_v1)[:, 1]
+    
+    # For v1_v2 modes, use V2 predictions too
+    if (use_both or use_both_mid or use_both_low) and model_v2 is not None:
+        X_test_v2 = test_df[feature_cols_v2]
+        prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
+        # Use min of both models
+        probabilities = np.minimum(prob_v1, prob_v2)
+    elif model_v2 is not None:
+        X_test_v2 = test_df[feature_cols_v2]
+        probabilities = model_v2.predict_proba(X_test_v2)[:, 1]
+    else:
+        probabilities = prob_v1
+    
     test_df['predicted_prob'] = probabilities
     
     # Filter by threshold
