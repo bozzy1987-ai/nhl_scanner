@@ -461,32 +461,31 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         # Check if v1_v2 mode (apply B2B filter)
         apply_b2b_filter = (model_version == "v1_v2")
         
-        # Get teams that played yesterday (B2B) - only for v1_v2
+        # Get teams that played yesterday (B2B) - for all models
         b2b_teams = set()
-        if apply_b2b_filter:
-            # Check yesterday only (day_offset = 1)
-            date = now - timedelta(days=1)
-            date_str = date.strftime('%Y-%m-%d')
-            
-            try:
-                resp = requests.get(f'https://api-web.nhle.com/v1/schedule/{date_str}', timeout=10)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data.get('gameWeek'):
-                        for day in data['gameWeek']:
-                            day_date = day.get('date', '')
-                            if day_date != date_str:
-                                continue
-                            for game in day.get('games', []):
-                                if game.get('gameState') == 'OFF':
-                                    home = game.get('homeTeam', {}).get('abbrev', '')
-                                    away = game.get('awayTeam', {}).get('abbrev', '')
-                                    if home:
-                                        b2b_teams.add(home)
-                                    if away:
-                                        b2b_teams.add(away)
-            except:
-                pass
+        # Check yesterday only (day_offset = 1)
+        date = now - timedelta(days=1)
+        date_str = date.strftime('%Y-%m-%d')
+        
+        try:
+            resp = requests.get(f'https://api-web.nhle.com/v1/schedule/{date_str}', timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('gameWeek'):
+                    for day in data['gameWeek']:
+                        day_date = day.get('date', '')
+                        if day_date != date_str:
+                            continue
+                        for game in day.get('games', []):
+                            if game.get('gameState') == 'OFF':
+                                home = game.get('homeTeam', {}).get('abbrev', '')
+                                away = game.get('awayTeam', {}).get('abbrev', '')
+                                if home:
+                                    b2b_teams.add(home)
+                                if away:
+                                    b2b_teams.add(away)
+        except:
+            pass
         
         # Fetch upcoming games
         for day_offset in range(days_ahead):
@@ -714,15 +713,29 @@ async def _build_predictions(all_games, threshold, model_version="v1"):
             else:
                 bet = prob_v1 >= 0.75 and prob_v2 >= 0.70
                 mode_msg = "V1+V2 (both >= 75%/70%)"
-            pred['bet_recommendation'] = 'BET' if bet else '-'
+            
+            # Check if B2B
+            is_b2b = pred['home_team'] in b2b_teams or pred['away_team'] in b2b_teams
+            pred['b2b'] = is_b2b
+            
             if bet:
+                pred['bet_recommendation'] = 'BET!' if is_b2b else 'BET'
                 bet_count += 1
+            else:
+                pred['bet_recommendation'] = '-'
         else:
             prob = prob_v2 if model_v2 else prob_v1
             pred['predicted_prob'] = round(prob * 100, 1)
-            pred['bet_recommendation'] = 'BET' if prob >= threshold_val else '-'
+            
+            # Check if B2B
+            is_b2b = pred['home_team'] in b2b_teams or pred['away_team'] in b2b_teams
+            pred['b2b'] = is_b2b
+            
             if prob >= threshold_val:
+                pred['bet_recommendation'] = 'BET!' if is_b2b else 'BET'
                 bet_count += 1
+            else:
+                pred['bet_recommendation'] = '-'
         
         results.append(pred)
     
