@@ -534,15 +534,18 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
             return {"games": all_games[:50], "message": f"Found {len(all_games)} games"}
         
         # Build predictions
-        return await _build_predictions(all_games, threshold, model_version)
+        return await _build_predictions(all_games, threshold, model_version, b2b_teams)
         
     except Exception as e:
         return {"error": str(e)[:200], "games": []}
 
 
-async def _build_predictions(all_games, threshold, model_version="v1"):
+async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams=None):
     """Helper to build ML predictions"""
     global combined_df
+    
+    if b2b_teams is None:
+        b2b_teams = set()
     
     teams_2024_25 = teams[teams['season'] == 2024].copy()
     team_map = {'PHX': 'ARI', 'UTA': 'ARI'}
