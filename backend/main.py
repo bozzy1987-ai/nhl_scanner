@@ -27,6 +27,15 @@ feature_cols_v2 = ['home_xg_pct', 'home_cf_pct', 'home_ff_pct', 'away_xg_pct', '
                    'home_shots_for', 'home_shots_against', 'away_shots_for', 'away_shots_against',
                    'home_high_danger', 'away_high_danger']
 
+feature_cols_v3 = ['home_xg_pct', 'home_cf_pct', 'home_ff_pct', 'away_xg_pct', 'away_cf_pct', 'away_ff_pct',
+                   'home_goals_for', 'home_goals_against', 'away_goals_for', 'away_goals_against',
+                   'home_shots_for', 'home_shots_against', 'away_shots_for', 'away_shots_against',
+                   'home_high_danger', 'away_high_danger',
+                   'home_xg_diff', 'away_xg_diff',
+                   'home_shooting_pct', 'away_shooting_pct',
+                   'home_save_pct', 'away_save_pct',
+                   'home_hd_diff', 'away_hd_diff']
+
 df = None
 df_2024_25 = None
 df_2025_26 = None
@@ -114,6 +123,15 @@ def load_data():
                 'away_shots_against': away_s.get('shotsOnGoalAgainst', 0),
                 'home_high_danger': home_s.get('highDangerShotsFor', 0),
                 'away_high_danger': away_s.get('highDangerShotsFor', 0),
+                # v3 features
+                'home_xg_diff': home_s.get('xGoalsFor', 0) - home_s.get('xGoalsAgainst', 0),
+                'away_xg_diff': away_s.get('xGoalsFor', 0) - away_s.get('xGoalsAgainst', 0),
+                'home_shooting_pct': (home_s['goalsFor'] / home_s.get('shotsOnGoalFor', 1)) * 100 if home_s.get('shotsOnGoalFor', 0) > 0 else 0,
+                'away_shooting_pct': (away_s['goalsFor'] / away_s.get('shotsOnGoalFor', 1)) * 100 if away_s.get('shotsOnGoalFor', 0) > 0 else 0,
+                'home_save_pct': (home_s.get('savedShotsOnGoalFor', 0) / home_s.get('shotsOnGoalAgainst', 1)) * 100 if home_s.get('shotsOnGoalAgainst', 0) > 0 else 0,
+                'away_save_pct': (away_s.get('savedShotsOnGoalFor', 0) / away_s.get('shotsOnGoalAgainst', 1)) * 100 if away_s.get('shotsOnGoalAgainst', 0) > 0 else 0,
+                'home_hd_diff': home_s.get('highDangerShotsFor', 0) - home_s.get('highDangerShotsAgainst', 0),
+                'away_hd_diff': away_s.get('highDangerShotsFor', 0) - away_s.get('highDangerShotsAgainst', 0),
             })
         
         df = pd.DataFrame(features)
@@ -130,6 +148,12 @@ def load_data():
             df['home_high_danger'] = 0
             df['away_high_danger'] = 0
         
+        # Add v3 columns
+        for col in ['home_xg_diff', 'away_xg_diff', 'home_shooting_pct', 'away_shooting_pct', 
+                    'home_save_pct', 'away_save_pct', 'home_hd_diff', 'away_hd_diff']:
+            if col not in df.columns:
+                df[col] = 0.0
+        
         # Load 2024-25 data if available
         if DATA_2024_25_PATH.exists():
             df_2024_25 = pd.read_csv(DATA_2024_25_PATH)
@@ -145,6 +169,10 @@ def load_data():
             df_2024_25['away_shots_against'] = 0
             df_2024_25['home_high_danger'] = 0
             df_2024_25['away_high_danger'] = 0
+            # Add v3 columns
+            for col in ['home_xg_diff', 'away_xg_diff', 'home_shooting_pct', 'away_shooting_pct', 
+                        'home_save_pct', 'away_save_pct', 'home_hd_diff', 'away_hd_diff']:
+                df_2024_25[col] = 0.0
             print(f"Loaded {len(df_2024_25)} 2024-25 games")
         
         # Load 2025-26 data if available
@@ -162,6 +190,10 @@ def load_data():
             df_2025_26['away_shots_against'] = 0
             df_2025_26['home_high_danger'] = 0
             df_2025_26['away_high_danger'] = 0
+            # Add v3 columns
+            for col in ['home_xg_diff', 'away_xg_diff', 'home_shooting_pct', 'away_shooting_pct', 
+                        'home_save_pct', 'away_save_pct', 'home_hd_diff', 'away_hd_diff']:
+                df_2025_26[col] = 0.0
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
         # Create combined_df for training
@@ -268,6 +300,7 @@ async def simulate(request: SimulationRequest):
     use_both = request.model_version == "v1_v2"
     use_both_low = request.model_version == "v1_v2_low"
     use_both_mid = request.model_version == "v1_v2_mid"
+    use_v3 = request.model_version == "v3"
     
     # Features for V1 model
     features = feature_cols
@@ -290,6 +323,7 @@ async def simulate(request: SimulationRequest):
     
     # Train V2 model if needed
     model_v2 = None
+    model_v3 = None
     if request.model_version.startswith("v2") or use_both or use_both_mid or use_both_low:
         features_v2 = feature_cols_v2
         X_train_v2 = train_df[features_v2]
@@ -298,6 +332,16 @@ async def simulate(request: SimulationRequest):
             subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
         )
         model_v2.fit(X_train_v2, y_train)
+    
+    # Train V3 model if needed
+    if use_v3:
+        features_v3 = feature_cols_v3
+        X_train_v3 = train_df[features_v3]
+        model_v3 = xgb.XGBClassifier(
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+        )
+        model_v3.fit(X_train_v3, y_train)
     
     # Predict
     X_test_v1 = test_df[feature_cols]
@@ -312,6 +356,9 @@ async def simulate(request: SimulationRequest):
     elif model_v2 is not None:
         X_test_v2 = test_df[feature_cols_v2]
         probabilities = model_v2.predict_proba(X_test_v2)[:, 1]
+    elif model_v3 is not None:
+        X_test_v3 = test_df[feature_cols_v3]
+        probabilities = model_v3.predict_proba(X_test_v3)[:, 1]
     else:
         probabilities = prob_v1
     
@@ -554,6 +601,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     use_both = model_version == "v1_v2"
     use_both_low = model_version == "v1_v2_low"
     use_both_mid = model_version == "v1_v2_mid"
+    use_v3 = model_version == "v3"
     mode_msg = ""
     
     # Build features
@@ -587,6 +635,8 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     # Always train both models for v1_v2 mode
     if use_both:
         features = feature_cols  # V1 features
+    elif use_v3:
+        features = feature_cols_v3
     else:
         features = feature_cols_v2 if model_version.startswith("v2") else feature_cols
     
@@ -602,6 +652,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     
     # Train V2 model if needed
     model_v2 = None
+    model_v3 = None
     if use_both or use_both_mid or use_both_low or model_version.startswith("v2"):
         features_v2 = feature_cols_v2
         X_train_v2 = train_df[features_v2]
@@ -610,6 +661,16 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
         )
         model_v2.fit(X_train_v2, y_train)
+    
+    # Train V3 model if needed
+    if use_v3:
+        features_v3 = feature_cols_v3
+        X_train_v3 = train_df[features_v3]
+        model_v3 = xgb.XGBClassifier(
+            n_estimators=100, max_depth=5, learning_rate=0.1,
+            subsample=0.8, colsample_bytree=0.8, random_state=42, eval_metric='logloss'
+        )
+        model_v3.fit(X_train_v3, y_train)
     
     # Predict
     threshold_val = threshold / 100
@@ -661,8 +722,9 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         ]]
         
         # Build V2 features if needed
-        if use_v2:
-            features = [[
+        features_v2 = None
+        if use_v2 or use_v3:
+            features_v2 = [[
                 home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
                 away_s['xGoalsPercentage'], away_s['corsiPercentage'], away_s.get('fenwickPercentage', 50),
                 home_s['goalsFor'], home_s['goalsAgainst'],
@@ -671,6 +733,36 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
                 away_s.get('shotsOnGoalFor', 0), away_s.get('shotsOnGoalAgainst', 0),
                 home_s.get('highDangerShotsFor', 0), away_s.get('highDangerShotsFor', 0)
             ]]
+        
+        # Build V3 features if needed
+        features_v3 = None
+        if use_v3:
+            home_shooting = (home_s['goalsFor'] / home_s.get('shotsOnGoalFor', 1)) * 100 if home_s.get('shotsOnGoalFor', 0) > 0 else 0
+            away_shooting = (away_s['goalsFor'] / away_s.get('shotsOnGoalFor', 1)) * 100 if away_s.get('shotsOnGoalFor', 0) > 0 else 0
+            home_save = (home_s.get('savedShotsOnGoalFor', 0) / home_s.get('shotsOnGoalAgainst', 1)) * 100 if home_s.get('shotsOnGoalAgainst', 0) > 0 else 0
+            away_save = (away_s.get('savedShotsOnGoalFor', 0) / away_s.get('shotsOnGoalAgainst', 1)) * 100 if away_s.get('shotsOnGoalAgainst', 0) > 0 else 0
+            
+            features_v3 = [[
+                home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
+                away_s['xGoalsPercentage'], away_s['corsiPercentage'], away_s.get('fenwickPercentage', 50),
+                home_s['goalsFor'], home_s['goalsAgainst'],
+                away_s['goalsFor'], away_s['goalsAgainst'],
+                home_s.get('shotsOnGoalFor', 0), home_s.get('shotsOnGoalAgainst', 0),
+                away_s.get('shotsOnGoalFor', 0), away_s.get('shotsOnGoalAgainst', 0),
+                home_s.get('highDangerShotsFor', 0), away_s.get('highDangerShotsFor', 0),
+                # v3 new features
+                home_s.get('xGoalsFor', 0) - home_s.get('xGoalsAgainst', 0),
+                away_s.get('xGoalsFor', 0) - away_s.get('xGoalsAgainst', 0),
+                home_shooting, away_shooting,
+                home_save, away_save,
+                home_s.get('highDangerShotsFor', 0) - home_s.get('highDangerShotsAgainst', 0),
+                away_s.get('highDangerShotsFor', 0) - away_s.get('highDangerShotsAgainst', 0)
+            ]]
+        
+        if use_v3:
+            features = features_v3
+        elif use_v2:
+            features = features_v2
         else:
             features = features_v1
         
@@ -683,7 +775,12 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         # Get V2 prediction if needed
         prob_v2 = prob_v1
         if model_v2 is not None:
-            prob_v2 = float(model_v2.predict_proba(features)[0][1])
+            prob_v2 = float(model_v2.predict_proba(features_v2)[0][1])
+        
+        # Get V3 prediction if needed
+        prob_v3 = prob_v1
+        if model_v3 is not None:
+            prob_v3 = float(model_v3.predict_proba(features_v3)[0][1])
         
         # For v1_v2 mode: use V1 threshold 75% and V2 threshold 70%
         if use_both or use_both_mid or use_both_low:
@@ -709,6 +806,14 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             pred['b2b_away'] = False
             
             if bet and pred['home_xg_pct'] >= 0.50:
+                pred['bet_recommendation'] = 'BET'
+            else:
+                pred['bet_recommendation'] = '-'
+        elif use_v3:
+            pred['predicted_prob'] = round(prob_v3 * 100, 1)
+            pred['b2b_home'] = False
+            pred['b2b_away'] = False
+            if prob_v3 >= threshold_val and pred['home_xg_pct'] >= 0.50:
                 pred['bet_recommendation'] = 'BET'
             else:
                 pred['bet_recommendation'] = '-'
@@ -766,7 +871,7 @@ async def list_models():
     for f in MODELS_PATH.glob("model_*.pkl"):
         available.append(f.stem.replace("model_", ""))
     # Always return v1, v2, v1_v2, v1_v2_mid and v1_v2_low as options
-    available = ["v1", "v2", "v1_v2", "v1_v2_mid", "v1_v2_low"]
+    available = ["v1", "v2", "v3", "v1_v2", "v1_v2_mid", "v1_v2_low"]
     return {"models": available}
 
 
