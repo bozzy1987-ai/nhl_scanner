@@ -478,35 +478,6 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         all_games = []
         now = datetime.now()
         
-        # Check if v1_v2 mode (apply B2B filter)
-        apply_b2b_filter = (model_version == "v1_v2")
-        
-        # Get teams that played yesterday (B2B) - for all models
-        b2b_teams = set()
-        # Check yesterday only (day_offset = 1)
-        date = now - timedelta(days=1)
-        date_str = date.strftime('%Y-%m-%d')
-        
-        try:
-            resp = requests.get(f'https://api-web.nhle.com/v1/schedule/{date_str}', timeout=10)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get('gameWeek'):
-                    for day in data['gameWeek']:
-                        day_date = day.get('date', '')
-                        if day_date != date_str:
-                            continue
-                        for game in day.get('games', []):
-                            if game.get('gameState') == 'OFF':
-                                home = game.get('homeTeam', {}).get('abbrev', '')
-                                away = game.get('awayTeam', {}).get('abbrev', '')
-                                if home:
-                                    b2b_teams.add(home)
-                                if away:
-                                    b2b_teams.add(away)
-        except:
-            pass
-        
         # Fetch upcoming games
         for day_offset in range(days_ahead):
             date = now + timedelta(days=day_offset)
@@ -523,11 +494,6 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                                 home = game.get('homeTeam', {}).get('abbrev', '')
                                 away = game.get('awayTeam', {}).get('abbrev', '')
                                 if home and away:
-                                    # Apply B2B filter only for v1_v2 mode and only for TOMORROW+ (not today)
-                                    if apply_b2b_filter and day_offset > 0:
-                                        if home in b2b_teams or away in b2b_teams:
-                                            continue
-                                    
                                     all_games.append({
                                         'date': game_date,
                                         'home_team': home,
@@ -554,7 +520,7 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
             return {"games": all_games[:50], "message": f"Found {len(all_games)} games"}
         
         # Build predictions
-        return await _build_predictions(all_games, threshold, model_version, b2b_teams)
+        return await _build_predictions(all_games, threshold, model_version)
         
     except Exception as e:
         return {"error": str(e)[:200], "games": []}
@@ -758,19 +724,12 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             prob = prob_v2 if model_v2 else prob_v1
             pred['predicted_prob'] = round(prob * 100, 1)
             
-            # Check if B2B - separate for home and away
-            home_b2b = pred['home_team'] in b2b_teams
-            away_b2b = pred['away_team'] in b2b_teams
-            pred['b2b_home'] = home_b2b
-            pred['b2b_away'] = away_b2b
+            # Skip B2B for now - causing issues with timezones
+            pred['b2b_home'] = False
+            pred['b2b_away'] = False
             
             if prob >= threshold_val and pred['home_xg_pct'] >= 0.50:
-                if home_b2b:
-                    pred['bet_recommendation'] = 'BET?'  # home tired - risky
-                elif away_b2b:
-                    pred['bet_recommendation'] = 'BET!'  # away tired - good
-                else:
-                    pred['bet_recommendation'] = 'BET'
+                pred['bet_recommendation'] = 'BET'
                 bet_count += 1
             else:
                 pred['bet_recommendation'] = '-'
