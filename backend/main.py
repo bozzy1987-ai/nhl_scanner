@@ -704,20 +704,12 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
                 bet = prob_v1 >= threshold_val and prob_v2 >= (threshold_val - 0.05)
                 mode_msg = f"V1+V2 (both >= {threshold}%/{threshold-5}%)"
             
-            # Check if B2B - separate for home and away
-            home_b2b = pred['home_team'] in b2b_teams
-            away_b2b = pred['away_team'] in b2b_teams
-            pred['b2b_home'] = home_b2b
-            pred['b2b_away'] = away_b2b
+            # Skip B2B for now - causing issues with timezones
+            pred['b2b_home'] = False
+            pred['b2b_away'] = False
             
-            if bet:
-                if home_b2b:
-                    pred['bet_recommendation'] = 'BET?'  # home tired - risky
-                elif away_b2b:
-                    pred['bet_recommendation'] = 'BET!'  # away tired - good
-                else:
-                    pred['bet_recommendation'] = 'BET'
-                bet_count += 1
+            if bet and pred['home_xg_pct'] >= 0.50:
+                pred['bet_recommendation'] = 'BET'
             else:
                 pred['bet_recommendation'] = '-'
         else:
@@ -730,14 +722,20 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             
             if prob >= threshold_val and pred['home_xg_pct'] >= 0.50:
                 pred['bet_recommendation'] = 'BET'
-                bet_count += 1
             else:
                 pred['bet_recommendation'] = '-'
         
         results.append(pred)
     
-    # Count actual BET recommendations
-    actual_bet_count = sum(1 for r in results if 'BET' in r.get('bet_recommendation', ''))
+    # Count actual BET recommendations - only exact match 'BET'
+    bet_count_BET = sum(1 for r in results if r.get('bet_recommendation') == 'BET')
+    bet_count_BET_other = sum(1 for r in results if 'BET' in str(r.get('bet_recommendation', '')))
+    
+    # Use the exact count for consistency with frontend display
+    actual_bet_count = bet_count_BET
+    
+    # Debug
+    print(f"DEBUG: BET count (exact): {bet_count_BET}, BET count (contains): {bet_count_BET_other}")
     
     mode_msg = mode_msg if (use_both or use_both_low or use_both_mid) else f"Model: {model_version}"
     return {

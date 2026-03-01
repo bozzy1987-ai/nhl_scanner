@@ -271,7 +271,7 @@ function App() {
             {scheduleData && (
               <div className="schedule-results">
                 <p className="schedule-info">
-                  Znaleziono: {scheduleData.total_games} gier, {scheduleData.bet_count} zakładów do obstawienia
+                  Znaleziono: {scheduleData.total_games} gier, {scheduleData.games.filter(g => g.bet_recommendation === 'BET').length} zakładów do obstawienia
                 </p>
                 
                 <div className="bets-table">
@@ -294,8 +294,6 @@ function App() {
                           <td>{game.predicted_prob}%</td>
                           <td className={game.bet_recommendation.startsWith('BET') ? 'bet' : ''}>
                             {game.bet_recommendation === 'BET' && '🎯 OBSTAW'}
-                            {game.bet_recommendation === 'BET!' && '🎯 OBSTAW! (gość B2B)'}
-                            {game.bet_recommendation === 'BET?' && '🎯 OBSTAW? (gosp. B2B)'}
                             {game.bet_recommendation === '-' && '-'}
                           </td>
                         </tr>
