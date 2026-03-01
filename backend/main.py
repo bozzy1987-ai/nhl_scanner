@@ -736,13 +736,16 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         
         results.append(pred)
     
+    # Count actual BET recommendations
+    actual_bet_count = sum(1 for r in results if 'BET' in r.get('bet_recommendation', ''))
+    
     mode_msg = mode_msg if (use_both or use_both_low or use_both_mid) else f"Model: {model_version}"
     return {
         "games": results[:200],
         "total_games": len(results),
-        "bet_count": bet_count,
+        "bet_count": actual_bet_count,
         "threshold": threshold,
-        "message": f"Found {len(results)} games, {bet_count} qualify for betting. {mode_msg}"
+        "message": f"Found {len(results)} games, {actual_bet_count} BET recommendations. {mode_msg}"
     }
 
 
