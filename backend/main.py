@@ -797,7 +797,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             features = features_v1
         
         # Get V1 prediction - use appropriate features based on what model was trained on
-        if model_version.startswith("v2") and not (use_both or use_both_mid or use_both_low):
+        if (model_version.startswith("v2") or model_version == "v3") and not (use_both or use_both_mid or use_both_low):
             prob_v1 = float(model_v1.predict_proba(features)[0][1])
         else:
             prob_v1 = float(model_v1.predict_proba(features_v1)[0][1])
