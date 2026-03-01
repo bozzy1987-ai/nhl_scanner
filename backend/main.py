@@ -764,7 +764,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
             pred['b2b_home'] = home_b2b
             pred['b2b_away'] = away_b2b
             
-            if prob >= threshold_val:
+            if prob >= threshold_val and pred['home_xg_pct'] >= 0.50:
                 if home_b2b:
                     pred['bet_recommendation'] = 'BET?'  # home tired - risky
                 elif away_b2b:
