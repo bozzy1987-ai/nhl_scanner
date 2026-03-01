@@ -169,10 +169,25 @@ def load_data():
             df_2024_25['away_shots_against'] = 0
             df_2024_25['home_high_danger'] = 0
             df_2024_25['away_high_danger'] = 0
-            # Add v3 columns
-            for col in ['home_xg_diff', 'away_xg_diff', 'home_shooting_pct', 'away_shooting_pct', 
-                        'home_save_pct', 'away_save_pct', 'home_hd_diff', 'away_hd_diff']:
-                df_2024_25[col] = 0.0
+            # Calculate v3 features from teams stats (season 2024)
+            teams_2024 = teams[teams['season'] == 2024]
+            for idx, row in df_2024_25.iterrows():
+                home = row['home_team']
+                away = row['away_team']
+                home_s = teams_2024[teams_2024['team'] == home]
+                away_s = teams_2024[teams_2024['team'] == away]
+                if len(home_s) > 0:
+                    hs = home_s.iloc[0]
+                    df_2024_25.loc[idx, 'home_xg_diff'] = hs.get('xGoalsFor', 0) - hs.get('xGoalsAgainst', 0)
+                    df_2024_25.loc[idx, 'home_shooting_pct'] = (hs['goalsFor'] / hs.get('shotsOnGoalFor', 1)) * 100 if hs.get('shotsOnGoalFor', 0) > 0 else 0
+                    df_2024_25.loc[idx, 'home_save_pct'] = (hs.get('savedShotsOnGoalFor', 0) / hs.get('shotsOnGoalAgainst', 1)) * 100 if hs.get('shotsOnGoalAgainst', 0) > 0 else 0
+                    df_2024_25.loc[idx, 'home_hd_diff'] = hs.get('highDangerShotsFor', 0) - hs.get('highDangerShotsAgainst', 0)
+                if len(away_s) > 0:
+                    as_ = away_s.iloc[0]
+                    df_2024_25.loc[idx, 'away_xg_diff'] = as_.get('xGoalsFor', 0) - as_.get('xGoalsAgainst', 0)
+                    df_2024_25.loc[idx, 'away_shooting_pct'] = (as_['goalsFor'] / as_.get('shotsOnGoalFor', 1)) * 100 if as_.get('shotsOnGoalFor', 0) > 0 else 0
+                    df_2024_25.loc[idx, 'away_save_pct'] = (as_.get('savedShotsOnGoalFor', 0) / as_.get('shotsOnGoalAgainst', 1)) * 100 if as_.get('shotsOnGoalAgainst', 0) > 0 else 0
+                    df_2024_25.loc[idx, 'away_hd_diff'] = as_.get('highDangerShotsFor', 0) - as_.get('highDangerShotsAgainst', 0)
             print(f"Loaded {len(df_2024_25)} 2024-25 games")
         
         # Load 2025-26 data if available
@@ -190,10 +205,25 @@ def load_data():
             df_2025_26['away_shots_against'] = 0
             df_2025_26['home_high_danger'] = 0
             df_2025_26['away_high_danger'] = 0
-            # Add v3 columns
-            for col in ['home_xg_diff', 'away_xg_diff', 'home_shooting_pct', 'away_shooting_pct', 
-                        'home_save_pct', 'away_save_pct', 'home_hd_diff', 'away_hd_diff']:
-                df_2025_26[col] = 0.0
+            # Calculate v3 features from teams stats (season 2024 for 2025-26)
+            teams_2024 = teams[teams['season'] == 2024]
+            for idx, row in df_2025_26.iterrows():
+                home = row['home_team']
+                away = row['away_team']
+                home_s = teams_2024[teams_2024['team'] == home]
+                away_s = teams_2024[teams_2024['team'] == away]
+                if len(home_s) > 0:
+                    hs = home_s.iloc[0]
+                    df_2025_26.loc[idx, 'home_xg_diff'] = hs.get('xGoalsFor', 0) - hs.get('xGoalsAgainst', 0)
+                    df_2025_26.loc[idx, 'home_shooting_pct'] = (hs['goalsFor'] / hs.get('shotsOnGoalFor', 1)) * 100 if hs.get('shotsOnGoalFor', 0) > 0 else 0
+                    df_2025_26.loc[idx, 'home_save_pct'] = (hs.get('savedShotsOnGoalFor', 0) / hs.get('shotsOnGoalAgainst', 1)) * 100 if hs.get('shotsOnGoalAgainst', 0) > 0 else 0
+                    df_2025_26.loc[idx, 'home_hd_diff'] = hs.get('highDangerShotsFor', 0) - hs.get('highDangerShotsAgainst', 0)
+                if len(away_s) > 0:
+                    as_ = away_s.iloc[0]
+                    df_2025_26.loc[idx, 'away_xg_diff'] = as_.get('xGoalsFor', 0) - as_.get('xGoalsAgainst', 0)
+                    df_2025_26.loc[idx, 'away_shooting_pct'] = (as_['goalsFor'] / as_.get('shotsOnGoalFor', 1)) * 100 if as_.get('shotsOnGoalFor', 0) > 0 else 0
+                    df_2025_26.loc[idx, 'away_save_pct'] = (as_.get('savedShotsOnGoalFor', 0) / as_.get('shotsOnGoalAgainst', 1)) * 100 if as_.get('shotsOnGoalAgainst', 0) > 0 else 0
+                    df_2025_26.loc[idx, 'away_hd_diff'] = as_.get('highDangerShotsFor', 0) - as_.get('highDangerShotsAgainst', 0)
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
         # Create combined_df for training
