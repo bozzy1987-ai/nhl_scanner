@@ -320,11 +320,8 @@ async def simulate(request: SimulationRequest):
     # Filter by threshold
     threshold = request.confidence_threshold / 100
     
-    # For v1_v2_low, also filter by xG% home >= 50%
-    if use_both_low:
-        qualifying_bets = test_df[(test_df['predicted_prob'] >= threshold) & (test_df['home_xg_pct'] >= 0.50)].copy()
-    else:
-        qualifying_bets = test_df[test_df['predicted_prob'] >= threshold].copy()
+    # Always filter by xG% home >= 50% to match schedule
+    qualifying_bets = test_df[(test_df['predicted_prob'] >= threshold) & (test_df['home_xg_pct'] >= 0.50)].copy()
     
     if len(qualifying_bets) == 0:
         return {
