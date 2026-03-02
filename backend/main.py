@@ -465,6 +465,10 @@ async def simulate(request: SimulationRequest):
         X_test_v3 = test_df[feature_cols_v3]
         probabilities = model_v3.predict_proba(X_test_v3)[:, 1]
     elif model_v4 is not None:
+        # Add default v4 columns if missing
+        for col in feature_cols_v4:
+            if col not in test_df.columns:
+                test_df[col] = 0.0
         X_test_v4 = test_df[feature_cols_v4]
         probabilities = model_v4.predict_proba(X_test_v4)[:, 1]
     else:
