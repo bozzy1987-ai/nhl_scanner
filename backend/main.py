@@ -213,6 +213,25 @@ def load_data():
                     df_2024_25.loc[idx, 'away_shooting_pct'] = (as_['goalsFor'] / as_.get('shotsOnGoalFor', 1)) * 100 if as_.get('shotsOnGoalFor', 0) > 0 else 0
                     df_2024_25.loc[idx, 'away_save_pct'] = (as_.get('savedShotsOnGoalFor', 0) / as_.get('shotsOnGoalAgainst', 1)) * 100 if as_.get('shotsOnGoalAgainst', 0) > 0 else 0
                     df_2024_25.loc[idx, 'away_hd_diff'] = as_.get('highDangerShotsFor', 0) - as_.get('highDangerShotsAgainst', 0)
+            
+            # Add v4 columns (per game - calculated from total / games_played)
+            for idx, row in df_2024_25.iterrows():
+                home = row['home_team']
+                away = row['away_team']
+                home_s = teams_2024[teams_2024['team'] == home]
+                away_s = teams_2024[teams_2024['team'] == away]
+                if len(home_s) > 0:
+                    hs = home_s.iloc[0]
+                    gp = hs.get('games_played', 82) if hs.get('games_played', 0) > 0 else 82
+                    df_2024_25.loc[idx, 'home_goals_per_game'] = hs.get('goalsFor', 0) / gp
+                    df_2024_25.loc[idx, 'home_shots_per_game'] = hs.get('shotsOnGoalFor', 0) / gp
+                    df_2024_25.loc[idx, 'home_hd_per_game'] = hs.get('highDangerShotsFor', 0) / gp
+                if len(away_s) > 0:
+                    as_ = away_s.iloc[0]
+                    gp = as_.get('games_played', 82) if as_.get('games_played', 0) > 0 else 82
+                    df_2024_25.loc[idx, 'away_goals_per_game'] = as_.get('goalsFor', 0) / gp
+                    df_2024_25.loc[idx, 'away_shots_per_game'] = as_.get('shotsOnGoalFor', 0) / gp
+                    df_2024_25.loc[idx, 'away_hd_per_game'] = as_.get('highDangerShotsFor', 0) / gp
             print(f"Loaded {len(df_2024_25)} 2024-25 games")
         
         # Load 2025-26 data if available
@@ -249,6 +268,25 @@ def load_data():
                     df_2025_26.loc[idx, 'away_shooting_pct'] = (as_['goalsFor'] / as_.get('shotsOnGoalFor', 1)) * 100 if as_.get('shotsOnGoalFor', 0) > 0 else 0
                     df_2025_26.loc[idx, 'away_save_pct'] = (as_.get('savedShotsOnGoalFor', 0) / as_.get('shotsOnGoalAgainst', 1)) * 100 if as_.get('shotsOnGoalAgainst', 0) > 0 else 0
                     df_2025_26.loc[idx, 'away_hd_diff'] = as_.get('highDangerShotsFor', 0) - as_.get('highDangerShotsAgainst', 0)
+            
+            # Add v4 columns (per game)
+            for idx, row in df_2025_26.iterrows():
+                home = row['home_team']
+                away = row['away_team']
+                home_s = teams_2024[teams_2024['team'] == home]
+                away_s = teams_2024[teams_2024['team'] == away]
+                if len(home_s) > 0:
+                    hs = home_s.iloc[0]
+                    gp = hs.get('games_played', 82) if hs.get('games_played', 0) > 0 else 82
+                    df_2025_26.loc[idx, 'home_goals_per_game'] = hs.get('goalsFor', 0) / gp
+                    df_2025_26.loc[idx, 'home_shots_per_game'] = hs.get('shotsOnGoalFor', 0) / gp
+                    df_2025_26.loc[idx, 'home_hd_per_game'] = hs.get('highDangerShotsFor', 0) / gp
+                if len(away_s) > 0:
+                    as_ = away_s.iloc[0]
+                    gp = as_.get('games_played', 82) if as_.get('games_played', 0) > 0 else 82
+                    df_2025_26.loc[idx, 'away_goals_per_game'] = as_.get('goalsFor', 0) / gp
+                    df_2025_26.loc[idx, 'away_shots_per_game'] = as_.get('shotsOnGoalFor', 0) / gp
+                    df_2025_26.loc[idx, 'away_hd_per_game'] = as_.get('highDangerShotsFor', 0) / gp
             print(f"Loaded {len(df_2025_26)} 2025-26 games")
         
         # Create combined_df for training
