@@ -552,6 +552,41 @@ async def simulate(request: SimulationRequest):
 @app.get("/schedule")
 async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_version: str = "v1"):
     """Get upcoming games and predictions"""
+    
+    # Special case: v2_v3 - call v2 and v3 separately and combine
+    if model_version == "v2_v3":
+        import requests
+        from datetime import datetime, timedelta
+        
+        # Get V2 results
+        v2_resp = await get_schedule(days_ahead, threshold, "v2")
+        v3_resp = await get_schedule(days_ahead, threshold, "v3")
+        
+        if 'games' not in v2_resp or 'games' not in v3_resp:
+            return {"games": [], "error": "Failed to get V2/V3 data"}
+        
+        v2_games = {f"{g['date']}_{g['home_team']}_{g['away_team']}": g for g in v2_resp.get('games', [])}
+        v3_games = {f"{g['date']}_{g['home_team']}_{g['away_team']}": g for g in v3_resp.get('games', [])}
+        
+        combined = []
+        for key, v2_game in v2_games.items():
+            if key in v3_games:
+                v3_game = v3_games[key]
+                # Check if both have >= threshold
+                if v2_game.get('predicted_prob', 0) >= threshold and v3_game.get('predicted_prob', 0) >= threshold:
+                    combined_game = v2_game.copy()
+                    combined_game['v2_prob'] = v2_game.get('predicted_prob')
+                    combined_game['v3_prob'] = v3_game.get('predicted_prob')
+                    combined_game['predicted_prob'] = min(v2_game.get('predicted_prob', 0), v3_game.get('predicted_prob', 0))
+                    combined_game['bet_recommendation'] = 'BET'
+                    combined.append(combined_game)
+        
+        return {
+            "games": combined,
+            "total_games": len(combined),
+            "message": f"V2+V3 >= {threshold}%"
+        }
+    
     import requests
     from datetime import datetime, timedelta
     
