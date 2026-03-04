@@ -550,17 +550,17 @@ async def simulate(request: SimulationRequest):
     }
 
 @app.get("/schedule")
-async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_version: str = "v1"):
+async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_version: str = "v1", _internal: bool = False):
     """Get upcoming games and predictions"""
     
     # Special case: v2_v3 - call v2 and v3 separately and combine
-    if model_version == "v2_v3":
+    if model_version == "v2_v3" and not _internal:
         import requests
         from datetime import datetime, timedelta
         
-        # Get V2 results
-        v2_resp = await get_schedule(days_ahead, threshold, "v2")
-        v3_resp = await get_schedule(days_ahead, threshold, "v3")
+        # Get V2 results (bypass special case)
+        v2_resp = await get_schedule(days_ahead, threshold, "v2", _internal=True)
+        v3_resp = await get_schedule(days_ahead, threshold, "v3", _internal=True)
         
         if 'games' not in v2_resp or 'games' not in v3_resp:
             return {"games": [], "error": "Failed to get V2/V3 data"}
@@ -572,14 +572,19 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         for key, v2_game in v2_games.items():
             if key in v3_games:
                 v3_game = v3_games[key]
+                v2_prob = v2_game.get('predicted_prob', 0)
+                v3_prob = v3_game.get('predicted_prob', 0)
                 # Check if both have >= threshold
-                if v2_game.get('predicted_prob', 0) >= threshold and v3_game.get('predicted_prob', 0) >= threshold:
+                if v2_prob >= threshold and v3_prob >= threshold:
                     combined_game = v2_game.copy()
-                    combined_game['v2_prob'] = v2_game.get('predicted_prob')
-                    combined_game['v3_prob'] = v3_game.get('predicted_prob')
-                    combined_game['predicted_prob'] = min(v2_game.get('predicted_prob', 0), v3_game.get('predicted_prob', 0))
+                    combined_game['v2_prob'] = v2_prob
+                    combined_game['v3_prob'] = v3_prob
+                    combined_game['predicted_prob'] = min(v2_prob, v3_prob)
                     combined_game['bet_recommendation'] = 'BET'
                     combined.append(combined_game)
+        
+        # Sort by date
+        combined.sort(key=lambda x: (x['date'], x['home_team']))
         
         return {
             "games": combined,
