@@ -808,6 +808,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     bet_count = 0
     
     use_v2 = model_version.startswith("v2") or use_both or use_both_mid or use_both_low
+    use_v2_for_features = use_v2 or use_v2_v3
     
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
@@ -816,8 +817,8 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         home_s = teams_2024_25[teams_2024_25['team'] == homeMapped].iloc[0]
         away_s = teams_2024_25[teams_2024_25['team'] == awayMapped].iloc[0]
         
-        # For v2: fallback to 2023 data if 2024 has NaN
-        if use_v2:
+        # For v2: fallback to 2023 data if 2024 has NaN (include v2_v3)
+        if use_v2_for_features:
             teams_2023 = teams[teams['season'] == 2023]
             if len(teams_2023) > 0:
                 home_2023 = teams_2023[teams_2023['team'] == homeMapped]
