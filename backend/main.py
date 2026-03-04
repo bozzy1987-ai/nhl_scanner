@@ -395,6 +395,7 @@ async def simulate(request: SimulationRequest):
     use_both_mid = request.model_version == "v1_v2_mid"
     use_v3 = request.model_version == "v3"
     use_v4 = request.model_version == "v4"
+    use_v2_v3 = request.model_version == "v2_v3"
     
     # Features for V1 model
     features = feature_cols
@@ -417,8 +418,7 @@ async def simulate(request: SimulationRequest):
     
     # Train V2 model if needed
     model_v2 = None
-    model_v3 = None
-    if request.model_version.startswith("v2") or use_both or use_both_mid or use_both_low:
+    if request.model_version.startswith("v2") or use_both or use_both_mid or use_both_low or use_v2_v3:
         features_v2 = feature_cols_v2
         X_train_v2 = train_df[features_v2]
         model_v2 = xgb.XGBClassifier(
@@ -428,7 +428,7 @@ async def simulate(request: SimulationRequest):
         model_v2.fit(X_train_v2, y_train)
     
     # Train V3 model if needed
-    if use_v3:
+    if use_v3 or use_v2_v3:
         features_v3 = feature_cols_v3
         X_train_v3 = train_df[features_v3]
         model_v3 = xgb.XGBClassifier(
@@ -474,13 +474,29 @@ async def simulate(request: SimulationRequest):
     else:
         probabilities = prob_v1
     
+    # For v2_v3: store both probabilities and filter where both >= threshold
+    if use_v2_v3:
+        X_test_v2 = test_df[feature_cols_v2]
+        prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
+        X_test_v3 = test_df[feature_cols_v3]
+        prob_v3 = model_v3.predict_proba(X_test_v3)[:, 1]
+        # Store both for filtering
+        test_df['prob_v2'] = prob_v2
+        test_df['prob_v3'] = prob_v3
+        # Use min for display but filter both >= threshold
+        probabilities = np.minimum(prob_v2, prob_v3)
+    
     test_df['predicted_prob'] = probabilities
     
     # Filter by threshold
     threshold = request.confidence_threshold / 100
     
-    # Always filter by xG% home >= 50% to match schedule
-    qualifying_bets = test_df[(test_df['predicted_prob'] >= threshold) & (test_df['home_xg_pct'] >= 0.50)].copy()
+    # For v2_v3: both V2 and V3 must be >= threshold
+    if use_v2_v3:
+        qualifying_bets = test_df[(test_df['prob_v2'] >= threshold) & (test_df['prob_v3'] >= threshold) & (test_df['home_xg_pct'] >= 0.50)].copy()
+    else:
+        # Always filter by xG% home >= 50% to match schedule
+        qualifying_bets = test_df[(test_df['predicted_prob'] >= threshold) & (test_df['home_xg_pct'] >= 0.50)].copy()
     
     if len(qualifying_bets) == 0:
         return {
@@ -715,6 +731,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     use_both_mid = model_version == "v1_v2_mid"
     use_v3 = model_version == "v3"
     use_v4 = model_version == "v4"
+    use_v2_v3 = model_version == "v2_v3"
     mode_msg = ""
     
     # Build features
@@ -766,7 +783,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     # Train V2 model if needed
     model_v2 = None
     model_v3 = None
-    if use_both or use_both_mid or use_both_low or model_version.startswith("v2"):
+    if use_both or use_both_mid or use_both_low or model_version.startswith("v2") or use_v2_v3:
         features_v2 = feature_cols_v2
         X_train_v2 = train_df[features_v2]
         model_v2 = xgb.XGBClassifier(
@@ -776,7 +793,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         model_v2.fit(X_train_v2, y_train)
     
     # Train V3 model if needed
-    if use_v3:
+    if use_v3 or use_v2_v3:
         features_v3 = feature_cols_v3
         X_train_v3 = train_df[features_v3]
         model_v3 = xgb.XGBClassifier(
@@ -930,6 +947,19 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
                 pred['bet_recommendation'] = 'BET'
             else:
                 pred['bet_recommendation'] = '-'
+        elif use_v2_v3:
+            # V2+V3: both must be >= threshold
+            pred['v2_prob'] = round(prob_v2 * 100, 1)
+            pred['v3_prob'] = round(prob_v3 * 100, 1)
+            pred['predicted_prob'] = round(min(prob_v2, prob_v3) * 100, 1)
+            pred['b2b_home'] = False
+            pred['b2b_away'] = False
+            # Both V2 and V3 must be >= threshold
+            bet = prob_v2 >= threshold_val and prob_v3 >= threshold_val and pred['home_xg_pct'] >= 0.50
+            if bet:
+                pred['bet_recommendation'] = 'BET'
+            else:
+                pred['bet_recommendation'] = '-'
         else:
             prob = prob_v2 if model_v2 else prob_v1
             pred['predicted_prob'] = round(prob * 100, 1)
@@ -983,8 +1013,8 @@ async def list_models():
     available = []
     for f in MODELS_PATH.glob("model_*.pkl"):
         available.append(f.stem.replace("model_", ""))
-    # Always return v1, v2, v1_v2, v1_v2_mid and v1_v2_low as options
-    available = ["v1", "v2", "v3", "v4", "v1_v2", "v1_v2_mid", "v1_v2_low"]
+    # Always return v1, v2, v1_v2, v1_v2_mid, v1_v2_low and v2_v3 as options
+    available = ["v1", "v2", "v3", "v4", "v1_v2", "v1_v2_mid", "v1_v2_low", "v2_v3"]
     return {"models": available}
 
 
