@@ -558,9 +558,9 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         import requests
         from datetime import datetime, timedelta
         
-        # Get V2 results (bypass special case)
-        v2_resp = await get_schedule(days_ahead, threshold, "v2", _internal=True)
-        v3_resp = await get_schedule(days_ahead, threshold, "v3", _internal=True)
+        # Get ALL V2 and V3 results (threshold=0 to get everything)
+        v2_resp = await get_schedule(days_ahead, 0, "v2", _internal=True)
+        v3_resp = await get_schedule(days_ahead, 0, "v3", _internal=True)
         
         if 'games' not in v2_resp or 'games' not in v3_resp:
             return {"games": [], "error": "Failed to get V2/V3 data"}
