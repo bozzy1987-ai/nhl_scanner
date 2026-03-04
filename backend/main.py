@@ -554,13 +554,15 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
     """Get upcoming games and predictions"""
     
     # Special case: v2_v3 - call v2 and v3 separately and combine
-    if model_version == "v2_v3" and not _internal:
+    # This MUST come before the normal schedule logic
+    actual_model = model_version  # Store original
+    if model_version == "v2_v3":
         import requests
         from datetime import datetime, timedelta
         
-        # Get ALL V2 and V3 results - use threshold=1 to get minimum filtering
-        v2_resp = await get_schedule(days_ahead, 1, "v2", _internal=True)
-        v3_resp = await get_schedule(days_ahead, 1, "v3", _internal=True)
+        # Get V2 and V3 results with minimum threshold to get all games
+        v2_resp = await get_schedule(days_ahead, 50, "v2", _internal=True)
+        v3_resp = await get_schedule(days_ahead, 50, "v3", _internal=True)
         
         if 'games' not in v2_resp or 'games' not in v3_resp:
             return {"games": [], "error": "Failed to get V2/V3 data"}
@@ -574,8 +576,8 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                 v3_game = v3_games[key]
                 v2_prob = v2_game.get('predicted_prob', 0)
                 v3_prob = v3_game.get('predicted_prob', 0)
-                # Check if both have >= threshold (actual threshold from user)
-                if v2_prob >= threshold and v3_prob >= threshold:
+                # Check if both have >= threshold
+                if v2_prob >= threshold and v3_prob >= threshold and v2_game.get('home_xg_pct', 0) >= 0.50:
                     combined_game = v2_game.copy()
                     combined_game['v2_prob'] = v2_prob
                     combined_game['v3_prob'] = v3_prob
@@ -583,16 +585,14 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                     combined_game['bet_recommendation'] = 'BET'
                     combined.append(combined_game)
         
-        # Sort by date
         combined.sort(key=lambda x: (x['date'], x['home_team']))
         
-        # Return ONLY BET games
-        bet_games = [g for g in combined if g.get('bet_recommendation') == 'BET']
-        
         return {
-            "games": bet_games,
-            "total_games": len(bet_games),
-            "message": f"V2+V3 >= {threshold}% - Found {len(bet_games)} bets"
+            "games": combined,
+            "total_games": len(combined),
+            "bet_count": len(combined),
+            "threshold": threshold,
+            "message": f"V2+V3 >= {threshold}% - {len(combined)} bets"
         }
     
     import requests
