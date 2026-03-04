@@ -853,7 +853,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         
         # Build V2 features if needed
         features_v2 = None
-        if use_v2 or use_v3:
+        if use_v2 or use_v3 or use_v2_v3:
             features_v2 = [[
                 home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
                 away_s['xGoalsPercentage'], away_s['corsiPercentage'], away_s.get('fenwickPercentage', 50),
@@ -866,7 +866,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
         
         # Build V3 features if needed
         features_v3 = None
-        if use_v3:
+        if use_v3 or use_v2_v3:
             home_shooting = (home_s['goalsFor'] / home_s.get('shotsOnGoalFor', 1)) * 100 if home_s.get('shotsOnGoalFor', 0) > 0 else 0
             away_shooting = (away_s['goalsFor'] / away_s.get('shotsOnGoalFor', 1)) * 100 if away_s.get('shotsOnGoalFor', 0) > 0 else 0
             home_save = (home_s.get('savedShotsOnGoalFor', 0) / home_s.get('shotsOnGoalAgainst', 1)) * 100 if home_s.get('shotsOnGoalAgainst', 0) > 0 else 0
