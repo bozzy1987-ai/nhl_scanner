@@ -558,9 +558,9 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         import requests
         from datetime import datetime, timedelta
         
-        # Get ALL V2 and V3 results (threshold=0 to get everything)
-        v2_resp = await get_schedule(days_ahead, 0, "v2", _internal=True)
-        v3_resp = await get_schedule(days_ahead, 0, "v3", _internal=True)
+        # Get ALL V2 and V3 results - use threshold=1 to get minimum filtering
+        v2_resp = await get_schedule(days_ahead, 1, "v2", _internal=True)
+        v3_resp = await get_schedule(days_ahead, 1, "v3", _internal=True)
         
         if 'games' not in v2_resp or 'games' not in v3_resp:
             return {"games": [], "error": "Failed to get V2/V3 data"}
@@ -574,7 +574,7 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
                 v3_game = v3_games[key]
                 v2_prob = v2_game.get('predicted_prob', 0)
                 v3_prob = v3_game.get('predicted_prob', 0)
-                # Check if both have >= threshold
+                # Check if both have >= threshold (actual threshold from user)
                 if v2_prob >= threshold and v3_prob >= threshold:
                     combined_game = v2_game.copy()
                     combined_game['v2_prob'] = v2_prob
