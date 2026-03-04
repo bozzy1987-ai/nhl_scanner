@@ -586,10 +586,13 @@ async def get_schedule(days_ahead: int = 10, threshold: float = 80.0, model_vers
         # Sort by date
         combined.sort(key=lambda x: (x['date'], x['home_team']))
         
+        # Return ONLY BET games
+        bet_games = [g for g in combined if g.get('bet_recommendation') == 'BET']
+        
         return {
-            "games": combined,
-            "total_games": len(combined),
-            "message": f"V2+V3 >= {threshold}%"
+            "games": bet_games,
+            "total_games": len(bet_games),
+            "message": f"V2+V3 >= {threshold}% - Found {len(bet_games)} bets"
         }
     
     import requests
