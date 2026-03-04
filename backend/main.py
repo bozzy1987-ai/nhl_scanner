@@ -807,7 +807,7 @@ async def _build_predictions(all_games, threshold, model_version="v1", b2b_teams
     results = []
     bet_count = 0
     
-    use_v2 = model_version.startswith("v2") or use_both or use_both_mid or use_both_low
+    use_v2 = model_version.startswith("v2") or use_both or use_both_mid or use_both_low or use_v2_v3
     
     for pred in predictions:
         homeMapped = team_map.get(pred['home_team'], pred['home_team'])
