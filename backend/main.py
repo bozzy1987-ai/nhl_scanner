@@ -498,8 +498,16 @@ async def simulate(request: SimulationRequest):
     X_test_v1 = test_df[feature_cols]
     prob_v1 = model_v1.predict_proba(X_test_v1)[:, 1]
     
+    # For V4 - check FIRST, as it needs v4 columns specifically
+    if use_v4 and model_v4 is not None:
+        # Add default v4 columns to test_df if missing
+        for col in feature_cols_v4:
+            if col not in test_df.columns:
+                test_df[col] = 0.0
+        X_test_v4 = test_df[feature_cols_v4]
+        probabilities = model_v4.predict_proba(X_test_v4)[:, 1]
     # For v1_v2 modes, use V2 predictions too
-    if (use_both or use_both_mid or use_both_low) and model_v2 is not None:
+    elif (use_both or use_both_mid or use_both_low) and model_v2 is not None:
         X_test_v2 = test_df[feature_cols_v2]
         prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
         # Use min of both models
@@ -510,13 +518,6 @@ async def simulate(request: SimulationRequest):
     elif model_v3 is not None:
         X_test_v3 = test_df[feature_cols_v3]
         probabilities = model_v3.predict_proba(X_test_v3)[:, 1]
-    elif model_v4 is not None:
-        # Add default v4 columns if missing
-        for col in feature_cols_v4:
-            if col not in test_df.columns:
-                test_df[col] = 0.0
-        X_test_v4 = test_df[feature_cols_v4]
-        probabilities = model_v4.predict_proba(X_test_v4)[:, 1]
     else:
         probabilities = prob_v1
     
