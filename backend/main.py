@@ -482,6 +482,10 @@ async def simulate(request: SimulationRequest):
     # Train V4 model if needed
     model_v4 = None
     if use_v4:
+        # Add default v4 columns to train_df if missing
+        for col in feature_cols_v4:
+            if col not in train_df.columns:
+                train_df[col] = 0.0
         features_v4 = feature_cols_v4
         X_train_v4 = train_df[features_v4]
         model_v4 = xgb.XGBClassifier(
