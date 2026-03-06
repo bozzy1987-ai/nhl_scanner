@@ -397,8 +397,8 @@ async def simulate(request: SimulationRequest):
     use_v4 = request.model_version == "v4"
     use_v2_v3 = request.model_version == "v2_v3"
     
-    # Add fallback to 2023 data for v2/v3 models (same as schedule)
-    if request.model_version.startswith("v2") or request.model_version == "v3" or request.model_version == "v2_v3" or use_both or use_both_mid or use_both_low:
+    # Add fallback to 2023 data for v2/v3/v4 models (same as schedule)
+    if request.model_version.startswith("v2") or request.model_version == "v3" or request.model_version == "v2_v3" or request.model_version == "v4" or use_both or use_both_mid or use_both_low:
         teams_2023 = teams[teams['season'] == 2023].copy()
         if len(teams_2023) > 0:
             for idx, row in test_df.iterrows():
