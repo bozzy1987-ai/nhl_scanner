@@ -397,6 +397,48 @@ async def simulate(request: SimulationRequest):
     use_v4 = request.model_version == "v4"
     use_v2_v3 = request.model_version == "v2_v3"
     
+    # Add fallback to 2023 data for v2/v3 models (same as schedule)
+    if request.model_version.startswith("v2") or request.model_version == "v3" or request.model_version == "v2_v3" or use_both or use_both_mid or use_both_low:
+        teams_2023 = teams[teams['season'] == 2023].copy()
+        if len(teams_2023) > 0:
+            for idx, row in test_df.iterrows():
+                home = row['home_team']
+                away = row['away_team']
+                home_2023 = teams_2023[teams_2023['team'] == home]
+                away_2023 = teams_2023[teams_2023['team'] == away]
+                
+                # Fallback for home team
+                if len(home_2023) > 0:
+                    h3 = home_2023.iloc[0]
+                    if pd.isna(test_df.loc[idx, 'home_ff_pct']) or test_df.loc[idx, 'home_ff_pct'] == 0:
+                        test_df.loc[idx, 'home_ff_pct'] = h3.get('fenwickPercentage', 50) or 50
+                    if pd.isna(test_df.loc[idx, 'home_shots_for']) or test_df.loc[idx, 'home_shots_for'] == 0:
+                        test_df.loc[idx, 'home_shots_for'] = h3.get('shotsOnGoalFor', 0) or 0
+                    if pd.isna(test_df.loc[idx, 'home_shots_against']) or test_df.loc[idx, 'home_shots_against'] == 0:
+                        test_df.loc[idx, 'home_shots_against'] = h3.get('shotsOnGoalAgainst', 0) or 0
+                    if pd.isna(test_df.loc[idx, 'home_high_danger']) or test_df.loc[idx, 'home_high_danger'] == 0:
+                        test_df.loc[idx, 'home_high_danger'] = h3.get('highDangerShotsFor', 0) or 0
+                
+                # Fallback for away team
+                if len(away_2023) > 0:
+                    a3 = away_2023.iloc[0]
+                    if pd.isna(test_df.loc[idx, 'away_ff_pct']) or test_df.loc[idx, 'away_ff_pct'] == 0:
+                        test_df.loc[idx, 'away_ff_pct'] = a3.get('fenwickPercentage', 50) or 50
+                    if pd.isna(test_df.loc[idx, 'away_shots_for']) or test_df.loc[idx, 'away_shots_for'] == 0:
+                        test_df.loc[idx, 'away_shots_for'] = a3.get('shotsOnGoalFor', 0) or 0
+                    if pd.isna(test_df.loc[idx, 'away_shots_against']) or test_df.loc[idx, 'away_shots_against'] == 0:
+                        test_df.loc[idx, 'away_shots_against'] = a3.get('shotsOnGoalAgainst', 0) or 0
+                    if pd.isna(test_df.loc[idx, 'away_high_danger']) or test_df.loc[idx, 'away_high_danger'] == 0:
+                        test_df.loc[idx, 'away_high_danger'] = a3.get('highDangerShotsFor', 0) or 0
+    
+    # Select features based on model version
+    use_both = request.model_version == "v1_v2"
+    use_both_low = request.model_version == "v1_v2_low"
+    use_both_mid = request.model_version == "v1_v2_mid"
+    use_v3 = request.model_version == "v3"
+    use_v4 = request.model_version == "v4"
+    use_v2_v3 = request.model_version == "v2_v3"
+    
     # Features for V1 model
     features = feature_cols
     
