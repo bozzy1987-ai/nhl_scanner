@@ -494,46 +494,89 @@ async def simulate(request: SimulationRequest):
         )
         model_v4.fit(X_train_v4, y_train)
     
-    # Predict
-    X_test_v1 = test_df[feature_cols]
-    prob_v1 = model_v1.predict_proba(X_test_v1)[:, 1]
-    
-    # For V4 - check FIRST, as it needs v4 columns specifically
+    # For V4 model: recalculate features from teams (like schedule!)
     if use_v4 and model_v4 is not None:
-        # Add default v4 columns to test_df if missing
-        for col in feature_cols_v4:
-            if col not in test_df.columns:
-                test_df[col] = 0.0
-        X_test_v4 = test_df[feature_cols_v4]
+        teams_2024_25 = teams[teams['season'] == 2024].copy()
+        
+        v4_features = []
+        for idx, row in test_df.iterrows():
+            home = row['home_team']
+            away = row['away_team']
+            
+            home_stats = teams_2024_25[teams_2024_25['team'] == home]
+            away_stats = teams_2024_25[teams_2024_25['team'] == away]
+            
+            if len(home_stats) == 0 or len(away_stats) == 0:
+                v4_features.append([50]*30)
+                continue
+            
+            home_s = home_stats.iloc[0]
+            away_s = away_stats.iloc[0]
+            
+            home_shooting = (home_s['goalsFor'] / home_s.get('shotsOnGoalFor', 1)) * 100 if home_s.get('shotsOnGoalFor', 0) > 0 else 0
+            away_shooting = (away_s['goalsFor'] / away_s.get('shotsOnGoalFor', 1)) * 100 if away_s.get('shotsOnGoalFor', 0) > 0 else 0
+            home_save = (home_s.get('savedShotsOnGoalFor', 0) / home_s.get('shotsOnGoalAgainst', 1)) * 100 if home_s.get('shotsOnGoalAgainst', 0) > 0 else 0
+            away_save = (away_s.get('savedShotsOnGoalFor', 0) / away_s.get('shotsOnGoalAgainst', 1)) * 100 if away_s.get('shotsOnGoalAgainst', 0) > 0 else 0
+            
+            gp_home = home_s.get('games_played', 82) if home_s.get('games_played', 82) > 0 else 82
+            gp_away = away_s.get('games_played', 82) if away_s.get('games_played', 82) > 0 else 82
+            
+            features = [
+                home_s['xGoalsPercentage'], home_s['corsiPercentage'], home_s.get('fenwickPercentage', 50),
+                away_s['xGoalsPercentage'], away_s['corsiPercentage'], away_s.get('fenwickPercentage', 50),
+                home_s['goalsFor'], home_s['goalsAgainst'],
+                away_s['goalsFor'], away_s['goalsAgainst'],
+                home_s.get('shotsOnGoalFor', 0), home_s.get('shotsOnGoalAgainst', 0),
+                away_s.get('shotsOnGoalFor', 0), away_s.get('shotsOnGoalAgainst', 0),
+                home_s.get('highDangerShotsFor', 0), away_s.get('highDangerShotsFor', 0),
+                home_s.get('xGoalsFor', 0) - home_s.get('xGoalsAgainst', 0),
+                away_s.get('xGoalsFor', 0) - away_s.get('xGoalsAgainst', 0),
+                home_shooting, away_shooting,
+                home_save, away_save,
+                home_s.get('highDangerShotsFor', 0) - home_s.get('highDangerShotsAgainst', 0),
+                away_s.get('highDangerShotsFor', 0) - away_s.get('highDangerShotsAgainst', 0),
+                home_s['goalsFor'] / gp_home, away_s['goalsFor'] / gp_away,
+                home_s.get('shotsOnGoalFor', 0) / gp_home, away_s.get('shotsOnGoalFor', 0) / gp_away,
+                home_s.get('highDangerShotsFor', 0) / gp_home, away_s.get('highDangerShotsFor', 0) / gp_away
+            ]
+            v4_features.append(features)
+        
+        X_test_v4 = np.array(v4_features)
         probabilities = model_v4.predict_proba(X_test_v4)[:, 1]
-    # For v1_v2 modes, use V2 predictions too
-    elif (use_both or use_both_mid or use_both_low) and model_v2 is not None:
-        X_test_v2 = test_df[feature_cols_v2]
-        prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
-        # Use min of both models
-        probabilities = np.minimum(prob_v1, prob_v2)
-    elif model_v2 is not None:
-        X_test_v2 = test_df[feature_cols_v2]
-        probabilities = model_v2.predict_proba(X_test_v2)[:, 1]
-    elif model_v3 is not None:
-        X_test_v3 = test_df[feature_cols_v3]
-        probabilities = model_v3.predict_proba(X_test_v3)[:, 1]
+        test_df['predicted_prob'] = probabilities
     else:
-        probabilities = prob_v1
+        # Predict for non-V4 models
+        X_test_v1 = test_df[feature_cols]
+        prob_v1 = model_v1.predict_proba(X_test_v1)[:, 1]
+        
+        # For v1_v2 modes, use V2 predictions too
+        if (use_both or use_both_mid or use_both_low) and model_v2 is not None:
+            X_test_v2 = test_df[feature_cols_v2]
+            prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
+            # Use min of both models
+            probabilities = np.minimum(prob_v1, prob_v2)
+        elif model_v2 is not None:
+            X_test_v2 = test_df[feature_cols_v2]
+            probabilities = model_v2.predict_proba(X_test_v2)[:, 1]
+        elif model_v3 is not None:
+            X_test_v3 = test_df[feature_cols_v3]
+            probabilities = model_v3.predict_proba(X_test_v3)[:, 1]
+        else:
+            probabilities = prob_v1
     
-    # For v2_v3: store both probabilities and filter where both >= threshold
-    if use_v2_v3:
+    # For v2_v3: store both probabilities (only for non-V4)
+    if use_v2_v3 and not use_v4:
         X_test_v2 = test_df[feature_cols_v2]
         prob_v2 = model_v2.predict_proba(X_test_v2)[:, 1]
         X_test_v3 = test_df[feature_cols_v3]
         prob_v3 = model_v3.predict_proba(X_test_v3)[:, 1]
-        # Store both for filtering
         test_df['prob_v2'] = prob_v2
         test_df['prob_v3'] = prob_v3
-        # Use min for display but filter both >= threshold
         probabilities = np.minimum(prob_v2, prob_v3)
     
-    test_df['predicted_prob'] = probabilities
+    # Ensure predicted_prob is set
+    if 'predicted_prob' not in test_df.columns or test_df['predicted_prob'].isna().all():
+        test_df['predicted_prob'] = probabilities
     
     # Filter by threshold
     threshold = request.confidence_threshold / 100
